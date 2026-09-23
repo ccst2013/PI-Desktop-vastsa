@@ -343,10 +343,9 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
   return {
     ...settings,
     defaultMode: normalizeMode((settings as { defaultMode?: unknown }).defaultMode),
+    // Read settings are spread back into writes, which require a boolean here.
     infiniteProviderRetry:
-      (settings as { infiniteProviderRetry?: unknown }).infiniteProviderRetry === true
-        ? true
-        : undefined,
+      (settings as { infiniteProviderRetry?: unknown }).infiniteProviderRetry === true,
     defaultCommandShell: isCommandShellId(
       (settings as { defaultCommandShell?: unknown }).defaultCommandShell,
     )

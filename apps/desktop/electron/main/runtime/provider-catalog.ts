@@ -180,10 +180,9 @@ export function createProviderCatalogRuntime({
     ) as T & { defaultCommandShell?: unknown };
     return {
       ...(value as T),
+      // Keep disabled settings valid when they round-trip through IPC and back.
       infiniteProviderRetry: (value as T & { infiniteProviderRetry?: unknown })
-        .infiniteProviderRetry === true
-        ? true
-        : undefined,
+        .infiniteProviderRetry === true,
       defaultCommandShell: isCommandShellId(value.defaultCommandShell)
         ? value.defaultCommandShell
         : defaultCommandShellForPlatform(process.platform),
