@@ -129,10 +129,17 @@ export function registerProviderIpc({
     );
     if (!local.ok) return { ...local, network: "skipped" };
     const detail = await host.call<{
-      provider?: { baseUrl?: string; authKind?: string; headers?: Record<string, string> };
+      provider?: {
+        baseUrl?: string;
+        authKind?: string;
+        apiStyle?: string;
+        defaultModelId?: string;
+        headers?: Record<string, string>;
+      };
     }>("providers.get", { id });
     // A vendor account proves itself by resolving auth — refreshing the token
-    // if it has expired — not by probing /models with a key it does not have.
+    // if it has expired — not by probing a chat endpoint with a key it does
+    // not have.
     if (detail.provider?.authKind === OAUTH_AUTH_KIND) {
       try {
         await vendorOAuth.resolveAuth(id);
@@ -147,16 +154,62 @@ export function registerProviderIpc({
       }
     }
     const baseUrl = detail.provider?.baseUrl;
+    const apiStyle = detail.provider?.apiStyle;
     if (!baseUrl) return { ...local, network: "skipped" };
+    // Only Anthropic-style and OpenAI-compatible styles are probed via a real
+    // chat-ping. Other styles (google_generative_ai / pi_messages / ...) have
+    // no single canonical inference endpoint, so we surface the local
+    // validation as success and skip the network round-trip.
+    const isAnthropic = apiStyle === "anthropic_messages";
+    const isOpenAiCompat =
+      apiStyle === "chat_completions" ||
+      apiStyle === "responses" ||
+      apiStyle === "openai_codex_responses";
+    if (!isAnthropic && !isOpenAiCompat) {
+      return { ok: true, network: "skipped" };
+    }
+    const defaultModelId = detail.provider?.defaultModelId?.trim();
+    if (!defaultModelId) {
+      return {
+        ok: false,
+        network: "skipped",
+        message: "请先设置默认模型",
+      };
+    }
     const secret = await host.call<{ value?: string }>("providers.getSecret", { id });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
+    const root = baseUrl.replace(/\/+$/, "");
+    // Build endpoint + auth + body per wire style. Don't double-append when
+    // the user already configured a full URL (e.g. baseUrl ending in
+    // `/v1/chat/completions`).
+    let url: string;
+    let authHeaders: Record<string, string>;
+    const body = JSON.stringify({
+      model: defaultModelId,
+      max_tokens: 8,
+      messages: [{ role: "user", content: "ping" }],
+    });
+    if (isAnthropic) {
+      url = /\/v1\/messages\/?$/.test(root) ? root : `${root}/v1/messages`;
+      authHeaders = {
+        ...(secret.value ? { "x-api-key": secret.value } : {}),
+        "anthropic-version": "2023-06-01",
+      };
+    } else {
+      url = /\/(chat\/completions|messages)\/?$/.test(root)
+        ? root
+        : `${root}/chat/completions`;
+      authHeaders = secret.value ? { Authorization: `Bearer ${secret.value}` } : {};
+    }
     try {
-      const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/models`, {
+      const res = await fetch(url, {
+        method: "POST",
         headers: mergeProviderHeaders(
-          secret.value ? { Authorization: `Bearer ${secret.value}` } : {},
+          { "Content-Type": "application/json", ...authHeaders },
           detail.provider?.headers,
         ),
+        body,
         signal: controller.signal,
       });
       if (res.status === 401 || res.status === 403) {
@@ -175,7 +228,36 @@ export function registerProviderIpc({
           errorCode: ErrorCodes.PROVIDER_RATE_LIMITED,
         };
       }
-      return { ok: res.ok, network: res.ok ? "ok" : "failed", status: res.status };
+      if (res.status === 404) {
+        return {
+          ok: false,
+          network: "failed",
+          status: res.status,
+          message: "Endpoint 或模型不存在",
+        };
+      }
+      if (!res.ok) {
+        let serverMessage: string | undefined;
+        try {
+          const errData = (await res.json()) as {
+            error?: { message?: string };
+            message?: string;
+          };
+          serverMessage = errData?.error?.message || errData?.message;
+        } catch {
+          // non-JSON error body; fall through to statusText
+        }
+        return {
+          ok: false,
+          network: "failed",
+          status: res.status,
+          message: serverMessage || res.statusText,
+        };
+      }
+      // Drain body; a 2xx with a parseable response is sufficient proof of
+      // reachability. We deliberately do not inspect the payload.
+      await res.text().catch(() => undefined);
+      return { ok: true, network: "ok", status: res.status };
     } catch (e) {
       return {
         ok: false,
