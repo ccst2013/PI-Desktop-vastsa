@@ -1,4 +1,4 @@
-# Hello Glass · 日光 / 熔霞 / 晴海 / 晨雾
+# Glass · 日光 / 熔霞 / 晴海 / 晨雾
 
 ## 配色与新增组件约定
 
@@ -13,7 +13,7 @@
 | Abyss · 晴海 | `glass-abyss` | `#3f9bd8` | `#22d3c5` / `#38a8e8` / `#5b6cf0` | 0.5 |
 | Graphite · 晨雾 | `glass-graphite` | `#b6bfd4` | `#cfd6e4` / `#aab4cc` / `#8892b0` | 0.6 |
 
-四个 manifest 条目都加载 `themes/glass.css`，不复制组件样式，也不使用主题安全过滤禁止的 `@import`。共享规则用 `[data-plugin-theme|="plugin:demo.pi-themes:glass"]` 匹配保留的 `glass` / `glass-*` 家族；具体配色用完整 ID 精确匹配。既有 `glass` 日光偏好不变，Hello Midnight 不受影响。
+四个 manifest 条目都加载 `themes/glass.css`，不复制组件样式，也不使用主题安全过滤禁止的 `@import`。共享规则用 `[data-plugin-theme|="plugin:ccst.pi-themes:glass"]` 匹配保留的 `glass` / `glass-*` 家族；具体配色用完整 ID 精确匹配。既有 `glass` 日光偏好不变，Midnight 不受影响。
 
 | 用途 | 值 |
 | --- | --- |
@@ -98,7 +98,7 @@ await window.checkAllGlassThemes()
 
 夹具及断言位于 `scripts/e2e/glass-theme.html` 和 `scripts/e2e/glass-theme.js`。页面可直接选择四套主题，也支持 `?theme=glass-ember` 等初始主题参数。完整结果包含逐项实际值及预期值；这些检查不是对运行中原生应用自动安装插件的验收。
 
-应用中需要在插件页面重新加载 `examples/plugins/pi-themes`（插件 ID `demo.pi-themes`），再选择 **Hello Glass · 日光 / 熔霞 / 晴海 / 晨雾**；主题 CSS 由插件注册表读取，不属于 Vite 的普通 CSS 热更新。
+应用中需要在插件页面重新加载 `examples/plugins/pi-themes`（插件 ID `ccst.pi-themes`），再选择 **日光 / 熔霞 / 晴海 / 晨雾**；主题 CSS 由插件注册表读取，不属于 Vite 的普通 CSS 热更新。
 
 注册和安全测试：
 

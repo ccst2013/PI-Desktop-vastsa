@@ -19,7 +19,7 @@ async function onLoad() {
  await pi.ui.openPanel({ title: "Hello Plugin" });
  await pi.ui.showToast(settings.greeting || "Hello from plugin");
  // Declared in `contributes.bus.publish`; other plugins may listen.
- await pi.bus.publish("demo.pi-themes.greeted", { greeting: settings.greeting });
+ await pi.bus.publish("ccst.pi-themes.greeted", { greeting: settings.greeting });
  },
  });
 
@@ -57,7 +57,7 @@ async function onLoad() {
  start: ({ log }) => {
  log("greeter heartbeat started");
  heartbeat = setInterval(() => {
- void pi.bus.publish("demo.pi-themes.tick", { at: new Date().toISOString() });
+ void pi.bus.publish("ccst.pi-themes.tick", { at: new Date().toISOString() });
  }, 60_000);
  },
  stop: () => {

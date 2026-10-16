@@ -1,6 +1,6 @@
 {
  "schemaVersion": 1,
- "id": "demo.pi-themes",
+ "id": "ccst.pi-themes",
  "name": "Hello",
  "version": "0.2.0",
  "description": "PI-Desktop 示例插件：命令面板 + 面板 + Echo Tool + 技能 / 主题 / 常驻服务 / 消息总线",
@@ -54,31 +54,31 @@
  "themes": [
  {
  "id": "midnight",
- "label": "Hello Midnight",
+ "label": "Midnight",
  "path": "themes/midnight.css",
  "base": "dark"
  },
  {
  "id": "glass",
- "label": "Hello Glass · 日光",
+ "label": "日光",
  "path": "themes/glass.css",
  "base": "light"
  },
  {
  "id": "glass-ember",
- "label": "Hello Glass · 熔霞",
+ "label": "熔霞",
  "path": "themes/glass.css",
  "base": "light"
  },
  {
  "id": "glass-abyss",
- "label": "Hello Glass · 晴海",
+ "label": "晴海",
  "path": "themes/glass.css",
  "base": "light"
  },
  {
  "id": "glass-graphite",
- "label": "Hello Glass · 晨雾",
+ "label": "晨雾",
  "path": "themes/glass.css",
  "base": "light"
  }
@@ -90,7 +90,7 @@
  }
  ],
  "bus": {
- "publish": ["demo.pi-themes.greeted", "demo.pi-themes.tick"],
+ "publish": ["ccst.pi-themes.greeted", "ccst.pi-themes.tick"],
  "subscribe": ["demo.**"]
  },
  "settings": [

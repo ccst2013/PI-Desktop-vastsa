@@ -1,5 +1,5 @@
 /*
- * Hello Glass — 日光 / 熔霞 / 晴海 / 晨雾 (shared material sheet)
+ * Glass — 日光 / 熔霞 / 晴海 / 晨雾 (shared material sheet)
  * Palette/materials sampled from Glass OS · 系统设置 (2026-09-24):
  * https://done.cdn.alibabadesign.com/2026/09/24/0a7c41d6d5dba09a/project_444ab7c5-452f-49a4-b780-2a7f68f01570/chat_6d962860-eb4e-4a47-8de4-234f6ab76de3/file-index.html#/
  *
@@ -10,7 +10,7 @@
  * All four manifest entries load this file; the reserved glass / glass-* family
  * shares material rules. Exact theme selectors below set only reference colors.
  */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] {
   color-scheme: light;
   --glass-aurora-base: #8f66c9;
   --glass-aurora-1: #ee5a86;
@@ -127,19 +127,19 @@
 
 /* Reference variants change the light field, not the purple ink or controls.
  * Keep `glass` as the original 日光 id so existing preferences remain valid. */
-:root[data-plugin-theme="plugin:demo.pi-themes:glass-ember"] {
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-ember"] {
   --glass-aurora-base: #d4699b;
   --glass-aurora-1: #ff8a5c;
   --glass-aurora-2: #f0508c;
   --glass-aurora-3: #a44ad4;
 }
-:root[data-plugin-theme="plugin:demo.pi-themes:glass-abyss"] {
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-abyss"] {
   --glass-aurora-base: #3f9bd8;
   --glass-aurora-1: #22d3c5;
   --glass-aurora-2: #38a8e8;
   --glass-aurora-3: #5b6cf0;
 }
-:root[data-plugin-theme="plugin:demo.pi-themes:glass-graphite"] {
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-graphite"] {
   --glass-aurora-base: #b6bfd4;
   --glass-aurora-1: #cfd6e4;
   --glass-aurora-2: #aab4cc;
@@ -154,13 +154,13 @@
  * and the drift animation slides it into view, leaving the window corners
  * unlit. The bleed covers the largest drift (12vw / 7vh) plus ~3σ of blur, and
  * every bloom position is offset by the same amount so the composition stays. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] {
   --glass-aurora-bleed: calc(14vmax + 240px);
   background: linear-gradient(45deg, var(--glass-aurora-1) 0%,
     var(--glass-aurora-2) 48%, var(--glass-aurora-3) 100%), var(--glass-aurora-base);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::before,
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::after {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::before,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::after {
   content: "";
   position: fixed;
   inset: calc(var(--glass-aurora-bleed) * -1);
@@ -169,7 +169,7 @@
   background-repeat: no-repeat;
   pointer-events: none;
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::before {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::before {
   background-image:
     radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.55)), transparent 70%),
     radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.45)), transparent 70%);
@@ -179,7 +179,7 @@
     right calc(var(--glass-aurora-bleed) + 6vw) top calc(var(--glass-aurora-bleed) - 12vw);
   animation: glass-aurora-drift-a 26s ease-in-out infinite alternate;
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::after {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::after {
   background-image:
     radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.35)), transparent 70%),
     radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.30)), transparent 70%);
@@ -199,7 +199,7 @@
 }
 
 /* Only viewport/chrome containers are clear, never the page/inverse-ink token. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(body, #root, .app-shell,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(body, #root, .app-shell,
   .app-shell.settings-mode, .main-pane, .main-titlebar, .conversation-topbar,
   .window-chrome-row, .titlebar-nav, .main-titlebar-left, .chat-surface,
   .route-page, .settings-shell, .settings-shell-full, .settings-content,
@@ -216,7 +216,7 @@
  * A pseudo-element (not a backdrop-filter on the shell itself) keeps the shell
  * from becoming a containing block for fixed-position descendants; the host's
  * `.app-shell` is already the isolated stacking context that holds it. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .app-shell::before {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .app-shell::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -227,7 +227,7 @@
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.9));
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.sidebar, .settings-nav) {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.sidebar, .settings-nav) {
   background: var(--glass-side-over);
   border: 0;
   border-right: 1px solid var(--glass-border-deep);
@@ -237,7 +237,7 @@
   box-shadow: none;
 }
 /* The dock keeps the host's `--ds-bg-dock` step (glass-deep over the plate). */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .work-panel {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .work-panel {
   border: 0;
   border-left: 1px solid var(--glass-border-deep);
   border-radius: 0;
@@ -246,7 +246,7 @@
 }
 
 /* Floating cards inside the shell keep their rounded glass. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.composer-shell,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.composer-shell,
   .composer-stack > .asktool-card) {
   background: var(--glass-surface);
   border: 1px solid var(--glass-border);
@@ -256,7 +256,7 @@
   box-shadow: var(--glass-shadow);
   color: var(--ds-text-primary);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.settings-card-block,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.settings-card-block,
   .tool-row-content, .work-panel-header) {
   background: var(--glass-deep);
   border: 1px solid var(--glass-border-deep);
@@ -265,26 +265,26 @@
   backdrop-filter: blur(calc(var(--glass-blur) * 1.15)) saturate(var(--glass-sat));
   box-shadow: var(--glass-shadow-deep);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-card-block {
   padding: 20px;
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-panel {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-panel {
   background: var(--glass-deep);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block .settings-panel {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-card-block .settings-panel {
   background: transparent;
   gap: 0;
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block .settings-row {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-card-block .settings-row {
   background: transparent;
   border-radius: 0;
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block .settings-row + .settings-row {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-card-block .settings-row + .settings-row {
   border-top: 1px solid rgba(255, 255, 255, 0.10);
 }
 
 /* Actual host menu/dialog classes, including portals outside the app shell. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.dialog, .settings-theme-menu,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.dialog, .settings-theme-menu,
   .settings-font-menu, .settings-menu-select-menu, .context-menu, .sidebar-row-menu,
   .sidebar-popover, .sidebar-floating-menu, .composer-permission-menu,
   .composer-model-menu, .composer-model-thinking-menu, .agent-capability-menu,
@@ -300,7 +300,7 @@
 
 /* Shared controls cover newly added settings, models, skills and plugins.
  * Never target all inputs: range/checkbox/file controls keep native geometry. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input, .field-select,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.field-input, .field-select,
   .field-textarea, .settings-search, .settings-theme-trigger, .settings-font-trigger,
   .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
   .plugins-search, .settings-segment) {
@@ -314,16 +314,16 @@
   box-shadow: var(--glass-shadow-pill);
   color: var(--ds-text-primary);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(textarea.field-input, .field-textarea) {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(textarea.field-input, .field-textarea) {
   border-radius: var(--radius-md);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input, .field-select,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.field-input, .field-select,
   .field-textarea, .settings-search, .settings-theme-trigger, .settings-font-trigger,
   .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
   .plugins-search):hover:not(:disabled):not([readonly]) {
   background: var(--glass-pill-hover);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input, .field-select,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.field-input, .field-select,
   .field-textarea, .settings-search, .settings-theme-trigger, .settings-font-trigger,
   .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
   .plugins-search):focus-within {
@@ -333,23 +333,23 @@
 }
 
 /* State cues must survive the shared field paint, including keyboard focus. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input:read-only,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.field-input:read-only,
   .field-textarea:read-only, .field-select:disabled, .field-input:disabled,
   .field-textarea:disabled, .settings-menu-select-trigger:disabled) {
   color: var(--ds-text-muted);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.field-input,
   .field-select, .field-textarea)[aria-invalid="true"],
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.field-input,
   .field-select, .field-textarea)[aria-invalid="true"]:focus-within {
   border-color: var(--ds-warning);
   box-shadow: var(--glass-shadow-pill), 0 0 0 2px var(--ds-warning);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-segment-item {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-segment-item {
   border-radius: var(--radius-full);
   color: var(--ds-text-secondary);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.settings-segment-item.active,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(.settings-segment-item.active,
   .settings-nav-item.active, .thread-item.active) {
   background: var(--glass-selected);
   border-color: var(--ds-border-strong);
@@ -358,18 +358,18 @@
 }
 
 /* Preserve semantic actions: primary violet, secondary glass, ghost clear. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .btn-secondary {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .btn-secondary {
   background: var(--glass-selected);
   color: var(--ds-text-primary);
   box-shadow: var(--glass-shadow-selected);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .btn-secondary:hover:not(:disabled) {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.78);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(input[type="range"], input[type="checkbox"]) {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(input[type="range"], input[type="checkbox"]) {
   accent-color: var(--ds-accent);
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .tool-row-content.is-error {
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .tool-row-content.is-error {
   background: color-mix(in srgb, var(--ds-error) 10%, var(--glass-pill));
   color: var(--ds-error);
 }
@@ -378,12 +378,12 @@
  * keyboard cues for buttons, tabs and other non-editable controls stay intact.
  * !important is intentional: feature sheets also add rings via :focus-visible
  * (marketplace fields, extension sheets, native inputs and future dialogs). */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(input, textarea, select,
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(input, textarea, select,
   [contenteditable="true"], [contenteditable=""], [role="textbox"], [role="dialog"],
   .dialog, .plugins-modal, .search-dialog):is(:focus, :focus-visible) {
   outline: none !important;
 }
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
   textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]
 ):is(:focus, :focus-visible):not([aria-invalid="true"]) {
@@ -391,7 +391,7 @@
   box-shadow: var(--glass-field-shadow, none) !important;
 }
 /* Focus-within rings live on search/edit wrappers rather than their input. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(
   .agent-capability-search-wrap, .model-default-search, .projects-search-wrap,
   .provider-model-search-wrap, .provider-models-search-wrap, .provider-chosen-search-wrap,
   .settings-theme-search, .settings-language-search, .settings-font-search,
@@ -401,7 +401,7 @@
   box-shadow: var(--glass-field-shadow, none);
 }
 /* Wrapped inputs inherit custom properties: only the wrapper owns its lift. */
-:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(
+:root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(
   .agent-capability-search-wrap, .model-default-search, .projects-search-wrap,
   .provider-model-search-wrap, .provider-models-search-wrap, .provider-chosen-search-wrap,
   .settings-theme-search, .settings-language-search, .settings-font-search
@@ -412,13 +412,13 @@
 
 /* Accessibility: no perpetual aurora motion when the OS requests less motion. */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::before,
-  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::after {
+  :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::before,
+  :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::after {
     animation: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"] {
+  :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] {
     --glass-surface: #f6f1fb;
     --glass-deep: #e4d9f2;
     --glass-pill: #ffffff;
@@ -430,7 +430,7 @@
   }
 }
 @media (max-width: 800px) {
-  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block {
+  :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .settings-card-block {
     padding: 12px;
   }
 }
