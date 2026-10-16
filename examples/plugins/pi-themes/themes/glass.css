@@ -1,0 +1,436 @@
+/*
+ * Hello Glass — 日光 / 熔霞 / 晴海 / 晨雾 (shared material sheet)
+ * Palette/materials sampled from Glass OS · 系统设置 (2026-09-24):
+ * https://done.cdn.alibabadesign.com/2026/09/24/0a7c41d6d5dba09a/project_444ab7c5-452f-49a4-b780-2a7f68f01570/chat_6d962860-eb4e-4a47-8de4-234f6ab76de3/file-index.html#/
+ *
+ * New components inherit the --ds-* contract; use the shared field, panel,
+ * segment and menu classes below rather than introducing another palette.
+ * The opaque page token is deliberate: it is also used as inverse button ink
+ * and as the transcript occlusion mask. Only scenic shell surfaces go clear.
+ * All four manifest entries load this file; the reserved glass / glass-* family
+ * shares material rules. Exact theme selectors below set only reference colors.
+ */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] {
+  color-scheme: light;
+  --glass-aurora-base: #8f66c9;
+  --glass-aurora-1: #ee5a86;
+  --glass-aurora-2: #a05cc4;
+  --glass-aurora-3: #4a6ce2;
+  --glass-aurora-blob: rgba(255, 255, 255, 0.5);
+  --glass-aurora-blob-alpha: 0.5;
+  --glass-blur: 26px;
+  --glass-sat: 170%;
+  --glass-tint: 0.30;
+  --glass-edge: 0.45;
+  --glass-surface: rgba(255, 255, 255, var(--glass-tint));
+  --glass-deep: rgba(255, 255, 255, calc(var(--glass-tint) * 0.55));
+  --glass-pill: rgba(255, 255, 255, calc(var(--glass-tint) + 0.12));
+  --glass-pill-hover: rgba(255, 255, 255, calc(var(--glass-tint) + 0.20));
+  --glass-selected: rgba(255, 255, 255, calc(var(--glass-tint) + 0.38));
+  --glass-border: rgba(255, 255, 255, calc(var(--glass-edge) * 0.8));
+  --glass-border-deep: rgba(255, 255, 255, calc(var(--glass-edge) * 0.7));
+  --glass-side: linear-gradient(168deg,
+    rgba(255, 255, 255, calc(var(--glass-tint) + 0.16)),
+    rgba(255, 255, 255, calc(var(--glass-tint) + 0.06)) 55%,
+    rgba(255, 255, 255, calc(var(--glass-tint) + 0.12)));
+  /* The same side ramp composited over the window plate (white at tint):
+   * alpha d / (1 - tint) lands on tint + d, so the rail reads exactly as
+   * --glass-side without a second blur layer. */
+  --glass-side-over: linear-gradient(168deg,
+    rgba(255, 255, 255, calc(0.16 / (1 - var(--glass-tint)))),
+    rgba(255, 255, 255, calc(0.06 / (1 - var(--glass-tint)))) 55%,
+    rgba(255, 255, 255, calc(0.12 / (1 - var(--glass-tint)))));
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.9)),
+    0 24px 70px -34px rgba(59, 17, 110, 0.45);
+  --glass-shadow-deep: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.8)),
+    0 30px 90px -40px rgba(59, 17, 110, 0.5);
+  --glass-shadow-pill: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.85)),
+    0 8px 24px -14px rgba(59, 17, 110, 0.35);
+  --glass-shadow-selected: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 10px 30px -16px rgba(59, 17, 110, 0.4);
+  --ink-deep: #2b1244;
+  --ink-muted: #4a3366;
+  --ink-faint: #6b5a86;
+
+  /* Complete semantic paint ramp, including newer dock/agent/plugin surfaces. */
+  --ds-bg-primary: #ffffff;
+  --ds-bg-secondary: var(--glass-surface);
+  --ds-bg-tertiary: #f6f1fb;
+  --ds-bg-inset: var(--glass-deep);
+  --ds-bg-under: var(--glass-aurora-base);
+  --ds-bg-elevated: var(--glass-pill-hover);
+  --ds-bg-elevated-primary: var(--glass-surface);
+  --ds-bg-elevated-opaque: #f6f1fb;
+  --ds-bg-hover: rgba(255, 255, 255, 0.20);
+  --ds-bg-active: var(--glass-selected);
+  --ds-bg-chip: var(--glass-pill);
+  --ds-bg-composer: var(--glass-surface);
+  --ds-bg-dock: var(--glass-deep);
+  --ds-bg-dock-raised: var(--glass-surface);
+  --ds-bg-sidebar: var(--glass-surface);
+  --ds-bg-sidebar-image: var(--glass-side);
+  --ds-settings-rail-bg: var(--glass-surface);
+  --ds-sidebar-glass-tint: transparent;
+  --ds-sidebar-glass-sheen-top: rgba(255, 255, 255, 0.16);
+  --ds-sidebar-glass-sheen-bottom: rgba(255, 255, 255, 0.06);
+  --ds-tile: var(--glass-deep);
+  --ds-tile-hover: var(--glass-surface);
+  --ds-tile-deep: var(--glass-pill);
+  --ds-raised: var(--glass-selected);
+  --ds-raised-shadow: var(--glass-shadow-selected);
+  --ds-settings-field-bg: var(--glass-pill);
+  --ds-settings-nav-active: var(--glass-selected);
+  --ds-field-inset-bg: var(--glass-pill);
+  --ds-field-inset-focus-bg: var(--glass-pill-hover);
+  --ds-border-default: var(--glass-border);
+  --ds-border-subtle: rgba(255, 255, 255, 0.28);
+  --ds-border-strong: rgba(255, 255, 255, 0.80);
+  --ds-text-primary: var(--ink-deep);
+  --ds-text-secondary: var(--ink-muted);
+  --ds-text-muted: var(--ink-faint);
+  --ds-text-faint: rgba(43, 18, 68, 0.55);
+  --ds-placeholder-ink: rgba(43, 18, 68, 0.55);
+  --ds-accent: #6d3fd4;
+  --ds-accent-hover: #5930b5;
+  --ds-accent-soft: #c2255c;
+  --ds-focus: var(--ds-accent);
+  --ds-purple: #a05cc4;
+  --ds-success: #187343;
+  --ds-warning: #914b12;
+  --ds-error: #e03131;
+  --ds-info: var(--ds-accent);
+  --ds-switch-track-off: rgba(43, 18, 68, 0.22);
+  --ds-switch-track-off-hover: rgba(43, 18, 68, 0.30);
+  --ds-switch-ring-off: rgba(43, 18, 68, 0.18);
+  --ds-switch-knob-off: #ffffff;
+  --ds-switch-knob-on: #ffffff;
+  --ds-prose-kbd-fg: var(--ink-muted);
+  --ds-thinking-code-bg: #e4d9f2;
+  --ds-mermaid-canvas: #f6f1fb;
+  --ds-code-head-bg: rgba(43, 18, 68, 0.06);
+  --ds-code-hover-bg: rgba(43, 18, 68, 0.10);
+  --ds-tool-row-bg: var(--glass-deep);
+  --ds-send-disabled-bg: #e4d9f2;
+  --ds-send-disabled-fg: var(--ink-faint);
+  --ds-scrim: rgba(43, 18, 68, 0.28);
+  --ds-modal-veil: rgba(43, 18, 68, 0.32);
+  --ds-shadow-composer: var(--glass-shadow);
+  --ds-shadow-dialog: var(--glass-shadow-deep);
+  --ds-elevation-stroke: 0 0 0 1px var(--glass-border);
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 22.4px;
+  --radius-2xl: 28px;
+}
+
+/* Reference variants change the light field, not the purple ink or controls.
+ * Keep `glass` as the original 日光 id so existing preferences remain valid. */
+:root[data-plugin-theme="plugin:demo.pi-themes:glass-ember"] {
+  --glass-aurora-base: #d4699b;
+  --glass-aurora-1: #ff8a5c;
+  --glass-aurora-2: #f0508c;
+  --glass-aurora-3: #a44ad4;
+}
+:root[data-plugin-theme="plugin:demo.pi-themes:glass-abyss"] {
+  --glass-aurora-base: #3f9bd8;
+  --glass-aurora-1: #22d3c5;
+  --glass-aurora-2: #38a8e8;
+  --glass-aurora-3: #5b6cf0;
+}
+:root[data-plugin-theme="plugin:demo.pi-themes:glass-graphite"] {
+  --glass-aurora-base: #b6bfd4;
+  --glass-aurora-1: #cfd6e4;
+  --glass-aurora-2: #aab4cc;
+  --glass-aurora-3: #8892b0;
+  --glass-aurora-blob: rgba(255, 255, 255, 0.6);
+  --glass-aurora-blob-alpha: 0.6;
+}
+
+/* Aurora field. Four light blooms, no external assets or background network.
+ * The bloom layers bleed past the viewport on every side. A viewport-sized
+ * layer clips the corner blooms at its own box, then blur(80px) fades that cut
+ * and the drift animation slides it into view, leaving the window corners
+ * unlit. The bleed covers the largest drift (12vw / 7vh) plus ~3σ of blur, and
+ * every bloom position is offset by the same amount so the composition stays. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] {
+  --glass-aurora-bleed: calc(14vmax + 240px);
+  background: linear-gradient(45deg, var(--glass-aurora-1) 0%,
+    var(--glass-aurora-2) 48%, var(--glass-aurora-3) 100%), var(--glass-aurora-base);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::before,
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::after {
+  content: "";
+  position: fixed;
+  inset: calc(var(--glass-aurora-bleed) * -1);
+  z-index: -1;
+  filter: blur(80px);
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::before {
+  background-image:
+    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.55)), transparent 70%),
+    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.45)), transparent 70%);
+  background-size: 62vw 62vw, 34vw 34vw;
+  background-position:
+    left calc(var(--glass-aurora-bleed) - 18vw) top calc(var(--glass-aurora-bleed) - 22vw),
+    right calc(var(--glass-aurora-bleed) + 6vw) top calc(var(--glass-aurora-bleed) - 12vw);
+  animation: glass-aurora-drift-a 26s ease-in-out infinite alternate;
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::after {
+  background-image:
+    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.35)), transparent 70%),
+    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.30)), transparent 70%);
+  background-size: 52vw 52vw, 66vw 66vw;
+  background-position:
+    left calc(var(--glass-aurora-bleed) - 6vw) bottom calc(var(--glass-aurora-bleed) - 26vw),
+    right calc(var(--glass-aurora-bleed) - 22vw) bottom calc(var(--glass-aurora-bleed) - 28vw);
+  animation: glass-aurora-drift-b 32s ease-in-out infinite alternate;
+}
+@keyframes glass-aurora-drift-a {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(9vw, 7vh, 0); }
+}
+@keyframes glass-aurora-drift-b {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(12vw, -6vh, 0); }
+}
+
+/* Only viewport/chrome containers are clear, never the page/inverse-ink token. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(body, #root, .app-shell,
+  .app-shell.settings-mode, .main-pane, .main-titlebar, .conversation-topbar,
+  .window-chrome-row, .titlebar-nav, .main-titlebar-left, .chat-surface,
+  .route-page, .settings-shell, .settings-shell-full, .settings-content,
+  .settings-content-inner, .settings-titlebar, .home-stack-inner) {
+  background: transparent;
+}
+
+/* Shell tiling. One window-sized glass plate carries the blur for the whole
+ * shell; the sidebar, settings rail and work panel are flush tints on top of it.
+ * Per-pane rounded cards used to leave raw aurora wedges wherever a curved
+ * corner met the window edge, the sidebar or a neighbouring pane, and the
+ * titlebar strip above the chat card was never glazed at all. Window-flush
+ * surfaces stay square: the native window mask owns the outer corners.
+ * A pseudo-element (not a backdrop-filter on the shell itself) keeps the shell
+ * from becoming a containing block for fixed-position descendants; the host's
+ * `.app-shell` is already the isolated stacking context that holds it. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--glass-surface);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.9));
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.sidebar, .settings-nav) {
+  background: var(--glass-side-over);
+  border: 0;
+  border-right: 1px solid var(--glass-border-deep);
+  border-radius: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+/* The dock keeps the host's `--ds-bg-dock` step (glass-deep over the plate). */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .work-panel {
+  border: 0;
+  border-left: 1px solid var(--glass-border-deep);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--ds-text-primary);
+}
+
+/* Floating cards inside the shell keep their rounded glass. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.composer-shell,
+  .composer-stack > .asktool-card) {
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow: var(--glass-shadow);
+  color: var(--ds-text-primary);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.settings-card-block,
+  .tool-row-content, .work-panel-header) {
+  background: var(--glass-deep);
+  border: 1px solid var(--glass-border-deep);
+  border-radius: var(--radius-lg);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.15)) saturate(var(--glass-sat));
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.15)) saturate(var(--glass-sat));
+  box-shadow: var(--glass-shadow-deep);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block {
+  padding: 20px;
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-panel {
+  background: var(--glass-deep);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block .settings-panel {
+  background: transparent;
+  gap: 0;
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block .settings-row {
+  background: transparent;
+  border-radius: 0;
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block .settings-row + .settings-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+/* Actual host menu/dialog classes, including portals outside the app shell. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.dialog, .settings-theme-menu,
+  .settings-font-menu, .settings-menu-select-menu, .context-menu, .sidebar-row-menu,
+  .sidebar-popover, .sidebar-floating-menu, .composer-permission-menu,
+  .composer-model-menu, .composer-model-thinking-menu, .agent-capability-menu,
+  .plugins-menu, .projects-menu, .plugins-modal, .search-dialog, .ui-tooltip, .toast) {
+  background: var(--ds-bg-elevated-opaque);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.15)) saturate(var(--glass-sat));
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.15)) saturate(var(--glass-sat));
+  box-shadow: var(--glass-shadow-deep);
+  color: var(--ds-text-primary);
+}
+
+/* Shared controls cover newly added settings, models, skills and plugins.
+ * Never target all inputs: range/checkbox/file controls keep native geometry. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input, .field-select,
+  .field-textarea, .settings-search, .settings-theme-trigger, .settings-font-trigger,
+  .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
+  .plugins-search, .settings-segment) {
+  --glass-field-shadow: var(--glass-shadow-pill);
+  --glass-field-border: var(--glass-border);
+  background: var(--glass-pill);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-sat));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-sat));
+  box-shadow: var(--glass-shadow-pill);
+  color: var(--ds-text-primary);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(textarea.field-input, .field-textarea) {
+  border-radius: var(--radius-md);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input, .field-select,
+  .field-textarea, .settings-search, .settings-theme-trigger, .settings-font-trigger,
+  .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
+  .plugins-search):hover:not(:disabled):not([readonly]) {
+  background: var(--glass-pill-hover);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input, .field-select,
+  .field-textarea, .settings-search, .settings-theme-trigger, .settings-font-trigger,
+  .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
+  .plugins-search):focus-within {
+  background: var(--ds-field-inset-focus-bg);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-shadow-pill);
+}
+
+/* State cues must survive the shared field paint, including keyboard focus. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input:read-only,
+  .field-textarea:read-only, .field-select:disabled, .field-input:disabled,
+  .field-textarea:disabled, .settings-menu-select-trigger:disabled) {
+  color: var(--ds-text-muted);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input,
+  .field-select, .field-textarea)[aria-invalid="true"],
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.field-input,
+  .field-select, .field-textarea)[aria-invalid="true"]:focus-within {
+  border-color: var(--ds-warning);
+  box-shadow: var(--glass-shadow-pill), 0 0 0 2px var(--ds-warning);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-segment-item {
+  border-radius: var(--radius-full);
+  color: var(--ds-text-secondary);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(.settings-segment-item.active,
+  .settings-nav-item.active, .thread-item.active) {
+  background: var(--glass-selected);
+  border-color: var(--ds-border-strong);
+  box-shadow: var(--glass-shadow-selected);
+  color: var(--ds-text-primary);
+}
+
+/* Preserve semantic actions: primary violet, secondary glass, ghost clear. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .btn-secondary {
+  background: var(--glass-selected);
+  color: var(--ds-text-primary);
+  box-shadow: var(--glass-shadow-selected);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.78);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(input[type="range"], input[type="checkbox"]) {
+  accent-color: var(--ds-accent);
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .tool-row-content.is-error {
+  background: color-mix(in srgb, var(--ds-error) 10%, var(--glass-pill));
+  color: var(--ds-error);
+}
+/* Borderless focus for every editable field, including body-portaled menus.
+ * Do not remove the resting glass edge/lift or validation feedback. The host's
+ * keyboard cues for buttons, tabs and other non-editable controls stay intact.
+ * !important is intentional: feature sheets also add rings via :focus-visible
+ * (marketplace fields, extension sheets, native inputs and future dialogs). */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(input, textarea, select,
+  [contenteditable="true"], [contenteditable=""], [role="textbox"], [role="dialog"],
+  .dialog, .plugins-modal, .search-dialog):is(:focus, :focus-visible) {
+  outline: none !important;
+}
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+  textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]
+):is(:focus, :focus-visible):not([aria-invalid="true"]) {
+  border-color: var(--glass-field-border, transparent) !important;
+  box-shadow: var(--glass-field-shadow, none) !important;
+}
+/* Focus-within rings live on search/edit wrappers rather than their input. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(
+  .agent-capability-search-wrap, .model-default-search, .projects-search-wrap,
+  .provider-model-search-wrap, .provider-models-search-wrap, .provider-chosen-search-wrap,
+  .settings-theme-search, .settings-language-search, .settings-font-search,
+  .message-edit
+):focus-within {
+  outline: none;
+  box-shadow: var(--glass-field-shadow, none);
+}
+/* Wrapped inputs inherit custom properties: only the wrapper owns its lift. */
+:root[data-plugin-theme|="plugin:demo.pi-themes:glass"] :is(
+  .agent-capability-search-wrap, .model-default-search, .projects-search-wrap,
+  .provider-model-search-wrap, .provider-models-search-wrap, .provider-chosen-search-wrap,
+  .settings-theme-search, .settings-language-search, .settings-font-search
+) :is(input, textarea) {
+  --glass-field-shadow: none;
+  --glass-field-border: transparent;
+}
+
+/* Accessibility: no perpetual aurora motion when the OS requests less motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::before,
+  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"]::after {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"] {
+    --glass-surface: #f6f1fb;
+    --glass-deep: #e4d9f2;
+    --glass-pill: #ffffff;
+    --glass-pill-hover: #f6f1fb;
+    --glass-selected: #ffffff;
+    --glass-side: linear-gradient(#f6f1fb, #e4d9f2);
+    --glass-side-over: var(--glass-side);
+    --glass-blur: 0px;
+  }
+}
+@media (max-width: 800px) {
+  :root[data-plugin-theme|="plugin:demo.pi-themes:glass"] .settings-card-block {
+    padding: 12px;
+  }
+}
