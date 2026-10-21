@@ -778,6 +778,7 @@ describe("buildProviderModel OpenAI-compatible role compatibility", () => {
     expect(model.provider).toBe("siliconflow-cn");
     expect(model.compat).toMatchObject({
       requiresReasoningContentOnAssistantMessages: true,
+      supportsReasoningEffort: false,
       requiresNonEmptyReasoningReplay: true,
       supportsDeveloperRole: false,
     });
@@ -1218,6 +1219,52 @@ describe("buildProviderModel model-level wire API", () => {
     expect(claudeRelay.api).toBe("openai-completions");
   });
 
+  it("routes OpenCode Go Claude models through the catalog Anthropic endpoint (issue #1728)", async () => {
+    const provider: RuntimeProviderConfig = {
+      ...keyedProvider,
+      id: "opencode-go",
+      name: "OpenCode Go",
+      vendorKey: "opencode-go",
+      baseUrl: "https://opencode.ai/zen/go/v1",
+      modelId: "claude-haiku-5-5",
+      apiStyle: "opencode_go",
+      modelConfig: {
+        source: "models.dev",
+        name: "Claude Haiku 5.5",
+        baseUrl: "https://opencode.ai/zen/go",
+        api: "anthropic_messages",
+        reasoning: true,
+        input: ["text"],
+        contextWindow: 200_000,
+        maxTokens: 64_000,
+      },
+    };
+    const model = buildProviderModel(provider);
+    expect(model.api).toBe("anthropic-messages");
+    expect(model.baseUrl).toBe("https://opencode.ai/zen/go");
+
+    const urls: string[] = [];
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      urls.push(input instanceof Request ? input.url : String(input));
+      return new Response("bad gateway", { status: 502 });
+    });
+    const result = await createProviderModels(provider, model)
+      .streamSimple(
+        model,
+        {
+          systemPrompt: "system",
+          messages: [{ role: "user", content: "hello", timestamp: Date.now() }],
+          tools: [],
+        },
+        { fetch },
+      )
+      .result();
+
+    expect(result.stopReason).toBe("error");
+    expect(urls).toHaveLength(1);
+    expect(new URL(urls[0]).pathname).toBe("/zen/go/v1/messages");
+  });
+
   it("posts responses models to the responses endpoint", async () => {
     const provider = responsesCatalogProvider;
     const model = buildProviderModel(provider);
@@ -1565,5 +1612,129 @@ describe("DeepSeek-family relay reasoning replay (#296)", () => {
     expect(assistants[1].reasoning_content).toBe(
       DEEPSEEK_REASONING_REPLAY_PLACEHOLDER,
     );
+    expect(requests[0].reasoning_effort).toBeUndefined();
+  });
+});
+
+describe("session affinity for the adapters' anonymous endpoints (#1634)", () => {
+  const ownEndpoint = (
+    overrides: Partial<RuntimeProviderConfig> = {},
+  ): RuntimeProviderConfig => ({
+    id: "gateway-row",
+    name: "Own gateway",
+    vendorKey: "custom",
+    baseUrl: "https://gateway.example.com/v1",
+    modelId: "gateway-model-1",
+    apiKey: "sk-test",
+    authKind: "api_key_and_base_url",
+    apiStyle: "chat_completions",
+    supportsReasoning: false,
+    supportedThinkingLevels: ["off"],
+    ...overrides,
+  });
+  const compatOf = (
+    provider: RuntimeProviderConfig,
+  ): Record<string, unknown> | undefined =>
+    buildProviderModel(provider).compat as Record<string, unknown> | undefined;
+
+  it("gives the built model the adapter's non-OpenRouter session shape", () => {
+    expect(compatOf(ownEndpoint())).toMatchObject({
+      sendSessionAffinityHeaders: true,
+      sessionAffinityFormat: "openai",
+    });
+    expect(
+      compatOf(
+        ownEndpoint({
+          apiStyle: "anthropic_messages",
+          baseUrl: "https://relay.example.com",
+        }),
+      ),
+    ).toMatchObject({
+      sendSessionAffinityHeaders: true,
+      sessionAffinityFormat: "openai",
+    });
+  });
+
+  it("leaves a published vendor host and the OpenCode path on their own shape", () => {
+    expect(
+      compatOf(
+        ownEndpoint({
+          vendorKey: "deepseek",
+          baseUrl: "https://api.deepseek.com",
+          apiStyle: "chat_completions",
+        }),
+      )?.sendSessionAffinityHeaders,
+    ).toBeUndefined();
+    expect(
+      compatOf(
+        ownEndpoint({
+          vendorKey: "openai",
+          baseUrl: "https://api.openai.com/v1",
+          apiStyle: "chat_completions",
+        }),
+      )?.sendSessionAffinityHeaders,
+    ).toBeUndefined();
+    expect(
+      compatOf(
+        ownEndpoint({
+          vendorKey: "opencode-go",
+          baseUrl: "https://opencode.ai/zen/go/v1",
+          apiStyle: "opencode_go",
+        }),
+      )?.sendSessionAffinityHeaders,
+    ).toBeUndefined();
+  });
+
+  it("spreads the default under a catalog entry that already answers", () => {
+    const provider = ownEndpoint();
+    const model = buildProviderModel({
+      ...provider,
+      modelConfig: {
+        source: "generic",
+        name: "Gateway model 1",
+        baseUrl: provider.baseUrl!,
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128_000,
+        maxTokens: 8_192,
+        compat: {
+          sendSessionAffinityHeaders: false,
+          sessionAffinityFormat: "openrouter",
+        },
+      },
+    });
+    expect(model.compat).toMatchObject({
+      sendSessionAffinityHeaders: false,
+      sessionAffinityFormat: "openrouter",
+    });
+  });
+
+  it("reaches the wire as the three headers §6.3 names", async () => {
+    const provider = ownEndpoint();
+    const model = buildProviderModel(provider);
+    let headers: Headers | undefined;
+    const fetch = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      headers = new Headers(init?.headers);
+      return new Response("data: [DONE]\n\n", {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    };
+
+    await createProviderModels(provider, model)
+      .streamSimple(
+        model,
+        {
+          systemPrompt: "system",
+          messages: [{ role: "user", content: "hello", timestamp: 1 }],
+        } as never,
+        { sessionId: "session-9", fetch },
+      )
+      .result();
+
+    expect(headers?.get("session_id")).toBe("session-9");
+    expect(headers?.get("x-client-request-id")).toBe("session-9");
+    expect(headers?.get("x-session-affinity")).toBe("session-9");
   });
 });

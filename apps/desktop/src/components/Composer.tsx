@@ -32,6 +32,7 @@ import { ComposerAutocomplete } from "./ComposerAutocomplete";
 import { AskToolCard } from "./AskToolCard";
 import { PlanApprovalBar } from "./PlanApprovalBar";
 import { TodoDock } from "./TodoDock";
+import { BackgroundTasksBar } from "./BackgroundTasksBar";
 import {
   COMPOSER_MAX_VISIBLE_ROWS,
   COMPOSER_MIN_HEIGHT_PX,
@@ -49,6 +50,7 @@ import { useComposerCompletions } from "../features/chat/composer/hooks/useCompo
 import { useComposerDraft } from "../features/chat/composer/hooks/useComposerDraft";
 import { useComposerInputHistory } from "../features/chat/composer/hooks/useComposerInputHistory";
 import { usePluginComposerBridge } from "../features/chat/composer/hooks/usePluginComposerBridge";
+import { useComposerSuggestion } from "../features/chat/composer/hooks/useComposerSuggestion";
 import { useComposerSubmit } from "../features/chat/composer/hooks/useComposerSubmit";
 import { useComposerTransforms } from "../features/chat/composer/hooks/useComposerTransforms";
 import { ComposerInput } from "../features/chat/composer/ComposerInput";
@@ -150,6 +152,7 @@ export function Composer({
       : EMPTY_QUEUED_PROMPTS,
   );
 
+  const [modeOpen, setModeOpen] = useState(false);
   const [permissionOpen, setPermissionOpen] = useState(false);
   const composerTransformInvalidateRef = useRef<() => void>(() => {});
   const composerShellRef = useRef<HTMLDivElement>(null);
@@ -414,6 +417,7 @@ export function Composer({
 
   useEffect(() => {
     if (!controlsBlocked) return;
+    setModeOpen(false);
     setPermissionOpen(false);
   }, [controlsBlocked]);
 
@@ -492,6 +496,9 @@ export function Composer({
 
   // Plugin draft and attachment actions reach this composer while it takes input.
   usePluginComposerBridge({ ...draft, inputBlocked, enabled: localToolsAllowed });
+  // A plugin may have offered one line for this empty draft; it shows in the
+  // placeholder layer and `Tab` takes it (ADR 0333).
+  const suggestion = useComposerSuggestion();
 
   // Keep the transcript's bottom reserve in sync with the composer's real
   // height (it grows with multi-line input) so the last message sits just
@@ -525,6 +532,7 @@ export function Composer({
     >
       <div className="composer-stack">
         {activeSessionId && localToolsAllowed ? <TodoDock sessionId={activeSessionId} /> : null}
+        <BackgroundTasksBar />
         {planCheckpoint?.status === "pending" ? (
           <PlanApprovalBar proposal={planCheckpoint} />
         ) : null}
@@ -577,6 +585,7 @@ export function Composer({
             enterToSend={enterToSend}
             runActive={runActive}
             composerAc={completions.ac}
+            suggestion={suggestion}
             onPaste={pasteClipboardFiles}
             onAcceptCompletion={completions.acceptCompletion}
             onSubmit={(steering) => void submitFromComposer(steering)}
@@ -607,6 +616,8 @@ export function Composer({
             modelId={modelId}
             thinkingLevel={thinkingLevel}
             composerPermissionMode={composerPermissionMode}
+            modeOpen={modeOpen}
+            setModeOpen={setModeOpen}
             permissionOpen={permissionOpen}
             setPermissionOpen={setPermissionOpen}
             controlsBlocked={controlsBlocked}

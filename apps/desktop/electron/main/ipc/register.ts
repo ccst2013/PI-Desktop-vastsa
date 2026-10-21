@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { dialog, type BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from "electron";
-import { err, ErrorCodes, IPC, ok, type Result } from "@pi-desktop/shared";
+import { dialog, shell, type BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from "electron";
+import { err, ErrorCodes, IPC, ok, type LifecycleDialogChoice, type Result } from "@pi-desktop/shared";
 import type { AgentHostBridge } from "../agent-host-bridge";
 import type { AgentSidecar } from "../agent-sidecar";
 import type { HostProcess } from "../host-process";
@@ -24,17 +24,20 @@ import { registerSessionIpc } from "./session-ipc";
 import { registerSettingsIpc } from "./settings-ipc";
 import { registerStorageIpc } from "../storage/ipc";
 import { registerConfigSyncIpc } from "./config-sync-ipc";
+import { registerBackgroundTasksIpc } from "./background-tasks-ipc";
 import { registerSkillsIpc } from "./skills-ipc";
 import { registerAgentImportIpc } from "./agent-import-ipc";
 import { registerRemoteHostIpc } from "./remote-host-ipc";
 import { fetchSkillMarketDocument, searchSkillMarket } from "../skill-market-catalog";
 import { registerWindowIpc } from "./window-ipc";
+import { registerWorktreeIpc } from "./worktree-ipc";
 import { createComposerTemplateLoader, registerWorkspaceIpc } from "./workspace-ipc";
 import { registerComposerIpc } from "./composer-ipc";
 import { registerSpeechIpc } from "./speech-ipc";
 import { registerVoiceIpc } from "./voice-ipc";
 import { registerLiveVoiceIpc } from "./live-voice-ipc";
 import type { LiveCallService } from "../live-voice/call-service";
+import type { ComposerSuggestionAnswer } from "../services/composer-suggestion";
 import type { LiveVoiceWidget } from "../live-voice/widget-window";
 import type { IpcRegistrar } from "./types";
 import type { createTraySessions } from "../tray-sessions";
@@ -58,6 +61,12 @@ export type RegisterIpcDependencies = {
   getBackendRouter?: () => BackendRouter | null;
   getNotificationViewingSessionId: () => string | null;
   setNotificationViewingSessionId: (sessionId: string | null) => void;
+  /** The session on screen, as the shell reported it (plugin `session:activated`). */
+  setActivePluginSession: (
+    next: { sessionId: string; projectPath: string | null } | null,
+  ) => void;
+  /** The shell's answer to a composer suggestion it was offered (ADR 0333). */
+  settleComposerSuggestion: (answer: ComposerSuggestionAnswer) => boolean;
   activeUserSubagentDocuments: (...args: any[]) => Promise<any>;
   disabledBuiltinSubagents: () => Promise<string[]>;
   disabledBuiltinSkills: () => Promise<string[]>;
@@ -65,6 +74,8 @@ export type RegisterIpcDependencies = {
   liveVoiceWidget?: LiveVoiceWidget;
   restartForStorage: () => void;
   mcpOAuth?: McpOAuthManager;
+  markLifecycleDialogRendererReady: (window: BrowserWindow) => boolean;
+  respondLifecycleDialog: (senderWindowId: number, requestId: unknown, choice: LifecycleDialogChoice) => boolean;
   [name: string]: any;
 };
 
@@ -90,6 +101,8 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     getBackendRouter,
     getNotificationViewingSessionId,
     setNotificationViewingSessionId,
+    setActivePluginSession,
+    settleComposerSuggestion,
     getPluginLauncherWindow,
     togglePluginLauncher,
     safeOpenExternal,
@@ -105,6 +118,9 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     sessionCapabilityContext,
     enrichSession,
     acquireSessionOperation,
+    beginTranscriptRewrite,
+    forgetTranscriptRewriteHistory,
+    recordTurnStart,
     stripWinLongPrefix,
     normalizeSettings,
     validateSettingsWrite,
@@ -134,7 +150,10 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     getWorkPanelChatWidthSetter,
     applyCloseBehavior,
     getCloseBehavior,
+    isMacosWindowTranslucent,
     markMenuRendererReady,
+    markLifecycleDialogRendererReady,
+    respondLifecycleDialog,
     traySessions,
     taskbarUnreadBadge,
     executeNativeMenuAction,
@@ -264,6 +283,8 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     sessionCapabilityContext,
     enrichSession,
     acquireSessionOperation,
+    beginTranscriptRewrite,
+    forgetTranscriptRewriteHistory,
     stripWinLongPrefix,
   });
   registerSettingsIpc({
@@ -289,6 +310,10 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     getHost,
     sendToRenderer,
   });
+  registerBackgroundTasksIpc({
+    registrar,
+    getHost,
+  });
   registerProviderIpc({
     registrar,
     getHost,
@@ -302,6 +327,13 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     onProviderInvalidated: (providerId) => liveCallService?.invalidateProvider(providerId),
   });
   registerJevIpc({ registrar, logger });
+  registerWorktreeIpc({
+    registrar,
+    getHost,
+    logger,
+    openPath: (path) => shell.openPath(path),
+    stripWinLongPrefix,
+  });
   const loadComposerTemplatesCached = createComposerTemplateLoader(logger);
   const composerCommandService = registerComposerIpc({
     registrar,
@@ -325,7 +357,10 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     getWorkPanelChatWidthSetter,
     applyCloseBehavior,
     getCloseBehavior,
+    isMacosWindowTranslucent,
     markMenuRendererReady,
+    markLifecycleDialogRendererReady,
+    respondLifecycleDialog,
     executeNativeMenuAction,
   });
   registerScheduledIpc({
@@ -394,6 +429,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     persistenceOutbox,
     dataDir,
     activeTurns,
+    recordTurnStart,
     isTurnDispatchable,
     activeTurnUsages,
     approvedExecutionIdsBySession,
@@ -462,7 +498,6 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     currentWorkspacePath,
   });
 
-
   registerPluginUiIpc({
     registrar,
     plugins,
@@ -473,8 +508,9 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     currentWorkspacePath,
     getUpdaterLocale,
     getPluginPanelTheme,
+    setActivePluginSession,
+    settleComposerSuggestion,
   });
-
   registerSpeechIpc({ registrar, speech });
 
   if (voiceService) {

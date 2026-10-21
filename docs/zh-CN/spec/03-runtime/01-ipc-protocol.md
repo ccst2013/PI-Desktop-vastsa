@@ -770,6 +770,12 @@ type SessionSummary = {
  supportedThinkingLevels?: ThinkingLevel[];
  updatedAt: string;
  createdAt: string;
+ /** Isolated sessions only (ADR 0329); never carries a filesystem path. */
+ worktree?: {
+  branch: string;
+  status: "creating" | "active" | "conflict" | "merged" | "missing";
+  setupStatus?: "none" | "running" | "ok" | "failed" | null;
+ };
 };
 
 type UiMessage = {
@@ -863,7 +869,8 @@ ID、或会话无法解析出默认目标时，得到 `supportsReasoning: false`
 最小接口：
 
 - `session/list`
-- `session/create`
+- `session/create` — 可选的 `isolated: true` 配合 `projectPath` 会在专属 git worktree 中创建
+  会话（ADR 0329）；拒绝时返回主机的 `WORKTREE_*` 代码
 - `session/fork({ sessionId, title?, throughMessageId? }) -> { session: SessionDetail }`
 - `session/get`
 - `session/delete`
@@ -1106,6 +1113,23 @@ type ProjectRecord = {
  lastOpenedAt: number;
 };
 ```
+
+## 9a. 会话 worktree API（ADR 0329）
+
+对主机 `worktree.*` 方法的薄转发（06-host-rpc-protocol §4）；错误保留主机的
+`WORKTREE_*` 代码。
+
+- `worktree/probe({ projectPath })` → 项目能否承载隔离会话（不能时给出拒绝代码），以及是否
+  有未提交改动
+- `worktree/preview({ sessionId })` / `worktree/merge({ sessionId, previewToken })`
+- `worktree/behind({ sessionId })` → 提交数，以及 `worktree/sync({ sessionId })` — “从项目同步”；`worktree/behindAll()`
+  → `{ counts: { [sessionId]: count }, statusesChanged }`，用于侧边栏标记
+- `worktree/pendingWork({ sessionId })` — 删除时会丢弃的未合并工作
+- `worktree/setupLog({ sessionId })`
+- `worktree/reveal({ sessionId })` — Electron Main 通过 `worktree.location` 解析文件夹并在
+  系统文件管理器中打开；路径绝不返回给渲染器
+- `worktree/setupCommand/get({ projectPath })` /
+  `worktree/setupCommand/set({ projectPath, command })`
 
 ## 10. 工具权限 API
 
@@ -1502,6 +1526,14 @@ window/closeBehavior/set({ behavior: "tray" | "quit" })
 在每个平台上启动时都会创建一个，而无论存的是哪种关闭行为，最小化到托盘都
 需要它。
 
+关闭行为与退出确认通过新增的、仅限主窗口的 Electron IPC 在应用内呈现。主进程
+在 renderer 确认 `pi-desktop/window/lifecycleDialog/ready` 后发送
+`pi-desktop/window/event/lifecycleDialogRequest`（`{ requestId, kind }`）；renderer
+通过 `pi-desktop/window/lifecycleDialog/respond` 返回 `{ requestId, choice }`。主进程
+回退时会通过 `pi-desktop/window/event/lifecycleDialogDismiss` 发送 request ID，令 renderer
+移除残留遮罩。主进程校验发送方和待处理的 request ID。renderer 缺失或无响应时，超时后
+回退到原生弹窗；原生弹窗也失败时允许关机继续，不会卡住。托盘退出会先恢复隐藏的主窗口再显示应用内
+确认框。此改动不影响 host RPC 或存储协议。
 Maximize/unmaximize 变化也会发出
 `window/event/maximized`。未知的操作失败。这些仅限电子的通道
 不要跨入 host-core，也不要更改主机 RPC 协议版本。

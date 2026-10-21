@@ -9,6 +9,7 @@ import { api } from "../lib/api";
 import { isHtmlFilePath, toWorkspaceRel, type ChatPreviewTarget } from "../lib/chat-links";
 import { openHttpUrl } from "../lib/open-http-url";
 import {
+  BROWSER_PLUGIN_TAB,
   FILE_MANAGER_PLUGIN_TAB,
   fileManagerPluginTab,
   hasPluginView,
@@ -83,6 +84,19 @@ export type ResolvedChatFileRef = {
   inProject: boolean;
   /** True when that folder is the project's primary one. */
   primary: boolean;
+  /** Session-owned generated artifacts, rather than imported attachments. */
+  scratch: boolean;
+};
+
+export type ChatFileOpenDestination =
+  | "file-manager"
+  | "built-in-browser"
+  | "default-browser";
+
+export type ChatFileOpenOptions = {
+  line?: number;
+  column?: number;
+  destination?: ChatFileOpenDestination;
 };
 
 /**
@@ -191,6 +205,7 @@ function useResolveChatFileRef() {
           relativePath: null,
           inProject: false,
           primary: false,
+          scratch: match.sessionScratch === true,
         };
       }
       // A project group can hold several folders, and a relative path always
@@ -203,6 +218,7 @@ function useResolveChatFileRef() {
         relativePath: match.relativePath,
         inProject: true,
         primary,
+        scratch: false,
       };
     },
     [paneSessionId, sessionId, showToast, t, workspacePath],
@@ -212,14 +228,14 @@ function useResolveChatFileRef() {
 /**
  * Open a file reference the conversation mentioned.
  *
- * A workspace `.html` page in the primary folder stays with the side browser
+ * A project or session-scratch `.html` page stays with the side browser
  * (ADR 0163): it is a page to run, not a file to read. A direct click on a
  * plain project file starts or retries the bundled file view; a positioned
  * `path:line` reference uses the host file tab, which can scroll to the line.
  * The plugin view accepts opaque path locations and has no line-navigation
  * contract, so positioned references keep their path unchanged and use the
- * host viewer's existing scroll support. Scratch and attachment files also use
- * the host file tab.
+ * host viewer's existing scroll support. Other scratch and attachment files
+ * also use the host file tab.
  */
 export function useOpenChatFileRef() {
   const { t } = useTranslation();
@@ -237,37 +253,93 @@ export function useOpenChatFileRef() {
       path: string,
       baseDir?: string,
       mimeType?: string,
-      position?: { line?: number; column?: number },
+      options?: ChatFileOpenOptions,
     ) => {
-      const line = position?.line;
-      const column = position?.column;
+      const line = options?.line;
+      const column = options?.column;
+      const destination = options?.destination;
       void (async () => {
         const resolved = await resolveRef(path, baseDir);
         if (!resolved) return;
         const current = useAppStore.getState();
         if (
-          current.workspace?.path !== workspacePath ||
+          (current.workspace?.path ?? null) !== workspacePath ||
           current.activeSessionId !== sessionId
         ) {
+          return;
+        }
+        if (destination === "file-manager") {
+          if (current.workspace?.remote) {
+            showToast(t("chat.fileManagerOpenFailed"), { variant: "error" });
+            return;
+          }
+          const ready = await ensureFileManagerView(workspacePath);
+          const latest = useAppStore.getState();
+          if (
+            (latest.workspace?.path ?? null) !== workspacePath ||
+            latest.activeSessionId !== sessionId
+          ) {
+            return;
+          }
+          if (!ready) {
+            showToast(t("chat.fileManagerOpenFailed"), { variant: "error" });
+            return;
+          }
+          openTab(
+            fileManagerPluginTab(
+              resolved.inProject ? resolved.path : resolved.absolutePath,
+            ),
+          );
+          return;
+        }
+        if (destination === "built-in-browser") {
+          if (
+            current.workspace?.remote ||
+            !hasPluginView(current.pluginViews, BROWSER_PLUGIN_TAB)
+          ) {
+            showToast(t("chat.builtInBrowserUnavailable"), {
+              variant: "error",
+            });
+            return;
+          }
+          openUrl(resolved.absolutePath);
+          return;
+        }
+        if (destination === "default-browser") {
+          if (current.workspace?.remote) {
+            showToast(t("chat.defaultBrowserOpenFailed"), {
+              variant: "error",
+            });
+            return;
+          }
+          try {
+            await api.fsOpen(resolved.absolutePath, mimeType, sessionId);
+          } catch {
+            showToast(t("chat.defaultBrowserOpenFailed"), {
+              variant: "error",
+            });
+          }
           return;
         }
         const hasPosition = line !== undefined || column !== undefined;
         if (
           !current.workspace?.remote &&
           !hasPosition &&
-          resolved.inProject &&
-          resolved.primary &&
-          resolved.relativePath &&
-          isHtmlFilePath(resolved.relativePath)
+          (resolved.inProject || resolved.scratch) &&
+          isHtmlFilePath(resolved.absolutePath)
         ) {
-          openUrl(resolved.relativePath);
+          if (!hasPluginView(current.pluginViews, BROWSER_PLUGIN_TAB)) {
+            showToast(t("panel.pluginView.failed"), { variant: "error" });
+            return;
+          }
+          openUrl(resolved.absolutePath);
           return;
         }
         if (!current.workspace?.remote && resolved.inProject && !hasPosition) {
           if (await ensureFileManagerView(workspacePath)) {
             const latest = useAppStore.getState();
             if (
-              latest.workspace?.path !== workspacePath ||
+              (latest.workspace?.path ?? null) !== workspacePath ||
               latest.activeSessionId !== sessionId
             ) {
               return;
@@ -277,7 +349,7 @@ export function useOpenChatFileRef() {
           }
           const latest = useAppStore.getState();
           if (
-            latest.workspace?.path !== workspacePath ||
+            (latest.workspace?.path ?? null) !== workspacePath ||
             latest.activeSessionId !== sessionId
           ) {
             return;
@@ -297,37 +369,6 @@ export function useOpenChatFileRef() {
       t,
       workspacePath,
     ],
-  );
-}
-
-/**
- * Show a file reference in the system file manager.
- *
- * It travels through the same completion and the same address rule a click
- * uses (`useOpenChatFileRef`), so a right-click never reveals a differently
- * named file that happens to sit in the same folder: a reference that matched
- * nothing says so instead.
- */
-export function useRevealChatFileRef() {
-  const { t } = useTranslation();
-  const resolveRef = useResolveChatFileRef();
-  const paneSessionId = useSlotSessionId();
-  const sessionId = useAppStore((s) => paneSessionId || s.activeSessionId);
-  const showToast = useAppStore((s) => s.showToast);
-
-  return useCallback(
-    (path: string, baseDir?: string) => {
-      void (async () => {
-        const resolved = await resolveRef(path, baseDir);
-        if (!resolved) return;
-        try {
-          await api.fsReveal(resolved.path, sessionId);
-        } catch {
-          showToast(t("chat.fileRevealFailed"), { variant: "error" });
-        }
-      })();
-    },
-    [resolveRef, sessionId, showToast, t],
   );
 }
 

@@ -81,7 +81,7 @@ test("composer exposes the runtime thinking level order and provider filtering",
   assert.doesNotMatch(stylesSource, /\.composer-thinking-level\b/);
   assert.match(
     stylesSource,
-    /\.composer-model-thinking-menu\s*\{[\s\S]*?width:\s*min\(280px,\s*calc\(100vw - 24px\)\);/
+    /\.composer-model-thinking-menu\s*\{[\s\S]*?width:\s*min\(320px,\s*calc\(100vw - 24px\)\);/
   );
   assert.match(composerSource, /availableThinkingLevels/);
   assert.match(composerSource, /thinkingMenuLevels/);
@@ -102,16 +102,14 @@ test("Composer owns the mode and model controls", () => {
     composerToolbarSource.indexOf('<div className="composer-left">'),
     composerToolbarSource.indexOf('<div className="composer-right">'),
   );
-  const modeControl = leftToolbar.indexOf(
-    'className="icon-btn mode-chip composer-mode-chip"',
-  );
+  const modeControl = leftToolbar.indexOf("<ComposerModePicker");
   const permissionControl = leftToolbar.indexOf("<ComposerPermissionPicker");
   const rightToolbar = composerToolbarSource.slice(
     composerToolbarSource.indexOf('<div className="composer-right">'),
   );
 
-  assert.ok(modeControl >= 0);
-  assert.ok(permissionControl > modeControl);
+  assert.ok(modeControl >= 0, "the left toolbar owns the mode trigger");
+  assert.ok(permissionControl > modeControl, "approval follows the mode trigger");
   // The task draft has no session, so its picker must not claim one: with
   // `activeSessionId` unset the menu resolves the selected model's binding
   // default thinking level instead of pinning the draft to its current value.
@@ -245,8 +243,7 @@ test("transcript keeps assistant thinking in a separate disclosure", () => {
   assert.match(transcriptSource, /tool-row thinking/);
   assert.match(transcriptSource, /className="tool-row-header"/);
   assert.match(transcriptSource, /aria-expanded=\{open\}/);
-  assert.match(transcriptSource, /aria-hidden=\{!open\}/);
-  assert.match(transcriptSource, /inert=\{!open\}/);
+  assert.match(transcriptSharedSource, /\{open \? \(\s*<div className="tool-row-body"/);
   assert.match(transcriptSource, /IconSparkles/);
   assert.match(transcriptSource, /messageThinking as thinkingText/);
   assert.match(transcriptSource, /thinking-prose[\s\S]*?Markdown source=\{text\}/);
@@ -294,7 +291,7 @@ test("tool and search rows stay collapsed while thinking keeps its leaf default"
   assert.match(transcriptSource, /onClick=\{toggleDisclosure\}/);
   assert.match(transcriptSource, /onCollapse=\{collapseDisclosure\}/);
   assert.match(transcriptSource, /onUserInteraction=\{claimDisclosure\}/);
-  assert.match(transcriptSource, /const tail = live && !open \? currentDetail : ""/);
+  assert.doesNotMatch(transcriptActivityGroupSource, /const tail =|tool-activity-preview/);
 });
 
 test("activity headers omit the redundant status capsule", () => {

@@ -48,9 +48,10 @@ import { SubagentTranscriptTab } from "./SubagentTranscriptTab";
 import {
   MAIN_PANE_MIN_WIDTH,
   WORK_PANEL_COMPACT_MIN_WIDTH,
-  WORK_PANEL_MIN_WIDTH,
   clampWorkPanelWidth,
+  workPanelGestureMinimum,
   workPanelLayout,
+  workPanelRequestedWidth,
   workPanelResetWidth,
   workPanelWidthBounds,
 } from "../../lib/work-panel-resize";
@@ -211,6 +212,7 @@ function LocalWorkPanel({
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const pluginViews = useAppStore((s) => s.pluginViews);
   const width = useAppStore((s) => s.workPanelWidth);
+  const yieldedWidth = useAppStore((s) => s.workPanelYieldedWidth);
   const activateTab = useAppStore((s) => s.activateWorkPanelTab);
   const reorderTabs = useAppStore((s) => s.reorderWorkPanelTabs);
   const closeTab = useAppStore((s) => s.closeWorkPanelTab);
@@ -241,7 +243,9 @@ function LocalWorkPanel({
   const tabReorderState = useRef<WorkPanelTabReorderState | null>(null);
   const tabStripRef = useRef<HTMLDivElement | null>(null);
   const suppressedTabClickPointerIdsRef = useRef<Set<number>>(new Set());
+  const tabWrapperRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const tabCloseButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const newTabButtonRef = useRef<HTMLButtonElement | null>(null);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<{
@@ -251,11 +255,6 @@ function LocalWorkPanel({
   const [nativeSurfaceReadyForExit, setNativeSurfaceReadyForExit] =
     useState(false);
 
-  const requestedPanelWidth = panelDragWidth ?? width;
-  const panelMinimum =
-    requestedPanelWidth < WORK_PANEL_MIN_WIDTH
-      ? WORK_PANEL_COMPACT_MIN_WIDTH
-      : WORK_PANEL_MIN_WIDTH;
   // The first render can precede ResizeObserver's first notification. Use a
   // conservative shell estimate for that frame; the measured width takes over
   // before a user can interact with the divider.
@@ -263,9 +262,20 @@ function LocalWorkPanel({
   const budgetWidth =
     containerWidth > 0
       ? containerWidth
-      : requestedPanelWidth +
+      : (panelDragWidth ?? width) +
         (sidebarOccupiesBudget ? sidebarWidth : 0) +
         MAIN_PANE_MIN_WIDTH;
+  // A drag preview is an explicit width; otherwise the panel asks for its
+  // preferred width, or the width it lent to a manually reopened sidebar.
+  const requestedPanelWidth =
+    panelDragWidth ??
+    workPanelRequestedWidth({
+      containerWidth: budgetWidth,
+      sidebarWidth,
+      sidebarCollapsed: !sidebarOccupiesBudget,
+      preferredWidth: width,
+      yieldedWidth,
+    });
   const layout = workPanelLayout({
     containerWidth: budgetWidth,
     sidebarWidth,
@@ -274,6 +284,7 @@ function LocalWorkPanel({
     maximized,
   });
   const renderPanelWidth = layout.panelWidth;
+  const panelMinimum = workPanelGestureMinimum(renderPanelWidth);
   const isResizing = panelDragWidth !== null;
 
   useLayoutEffect(() => {
@@ -303,7 +314,15 @@ function LocalWorkPanel({
 
   useLayoutEffect(() => {
     if (!activeTabId) return;
+    tabWrapperRefs.current[activeTabId]?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
     tabButtonRefs.current[activeTabId]?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
+    tabCloseButtonRefs.current[activeTabId]?.scrollIntoView({
       block: "nearest",
       inline: "nearest",
     });
@@ -731,7 +750,11 @@ function LocalWorkPanel({
       else if (event.key === "End") nextWidth = maximum;
       if (nextWidth === null) return;
       event.preventDefault();
-      setWidth(clampWorkPanelWidth(nextWidth, minimum));
+      const committedWidth = clampWorkPanelWidth(nextWidth, minimum);
+      // A key that cannot move the separator commits nothing, so it neither
+      // rewrites the preferred width nor ends a width lent to the sidebar.
+      if (committedWidth === renderPanelWidth) return;
+      setWidth(committedWidth);
     },
     [finishPanelResize, layout.maxPanelWidth, maximized, panelMinimum, renderPanelWidth, setWidth],
   );
@@ -837,6 +860,9 @@ function LocalWorkPanel({
                       : TAB_ICONS[tab.kind];
                   return (
                     <div
+                      ref={(node) => {
+                        tabWrapperRefs.current[tab.id] = node;
+                      }}
                       className={cx(
                         "work-panel-tab",
                         selected && "active",
@@ -876,6 +902,9 @@ function LocalWorkPanel({
                       </button>
                       <button
                         type="button"
+                        ref={(node) => {
+                          tabCloseButtonRefs.current[tab.id] = node;
+                        }}
                         className="work-panel-tab-close"
                         aria-label={t("panel.closeTab", { name: label })}
                         title={t("panel.closeTab", { name: label })}

@@ -24,6 +24,7 @@ A plugin can contribute one or more of these capabilities:
 | Service | Resident work supervised by the host | `contributes.services`, `background.service` permission |
 | Message bus | Typed-by-convention events between plugins | `contributes.bus`, bus permissions |
 | Renderer slot | UI drawn inside the app's own window: composer controls, message action bars, blocks below a reply, tool cards, code-block renderers, corner layers | `renderer`, `renderer.extension` permission, `packages/plugin-sdk/src/renderer.ts` |
+| Composer suggestion | One dismissible line offered to the input box, taken with Tab | `pi.composer.suggest`, `composer.suggest` permission |
 
 Plugin entry code runs in a dedicated Node process. Panels run in sandboxed,
 context-isolated Electron windows with no Node integration. Calls from either
@@ -884,7 +885,8 @@ export function onLoad(pi) {
 
 A dialog you draw yourself is not a slot: `pi.ui.openLayer()` hands you a layer
 to render into, and the component draws inside it. Styles go through
-`pi.ui.injectStyle`, and `react` / `react-dom` resolve to the app's copies
+`pi.ui.injectStyle`, and `react`, `react/jsx-dev-runtime`,
+`react/jsx-runtime`, `react-dom` and `react-dom/client` resolve to the app's copies
 through the window's import map, so no bundled React is needed.
 
 `rendererActions` whitelists what a component may dispatch — `plugin.call`,

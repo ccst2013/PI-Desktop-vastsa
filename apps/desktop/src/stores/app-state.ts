@@ -32,6 +32,7 @@ import type {
 } from "@pi-desktop/shared";
 import type { SettingsTabId } from "../lib/settings-search";
 import type { TranscriptSearchTarget, TranscriptView } from "../lib/transcript-reading";
+import type { TranscriptReadingPosition } from "../lib/transcript-reading-position";
 import type {
   ProjectMeta,
   ProjectSort,
@@ -63,6 +64,8 @@ export type ToastItem = {
   duration: number;
   /** Notification chime is enabled by default. */
   sound: boolean;
+  /** Optional conversation opened when the user activates the toast. */
+  sessionId?: string;
 };
 
 export type ToastOptions = {
@@ -71,6 +74,8 @@ export type ToastOptions = {
   duration?: number;
   /** Suppress the default soft chime when another notification surface already played it. */
   sound?: boolean;
+  /** Make the toast message an explicit conversation-navigation action. */
+  sessionId?: string;
 };
 
 export type AgentTurnResult = {
@@ -202,13 +207,19 @@ export type AppState = {
   refreshSessions: (options?: RefreshSessionsOptions) => Promise<void>;
   prefetchSession: (id: string) => Promise<void>;
   navigateTranscript: (target: Omit<TranscriptSearchTarget, "requestId">) => Promise<void>;
+  restoreTranscriptReading: (sessionId: string, position: TranscriptReadingPosition, signal: AbortSignal) => Promise<boolean>;
   loadTranscriptPage: (sessionId: string, direction: "before" | "after") => Promise<void>;
   returnToLatestTranscript: (sessionId: string) => void;
   selectSession: (
     id: string,
     opts?: { record?: boolean } & NavigationOptions,
   ) => Promise<void>;
-  newSession: (options?: { projectPath?: string | null; remoteProject?: RemoteProjectTarget }) => Promise<void>;
+  newSession: (options?: {
+    projectPath?: string | null;
+    remoteProject?: RemoteProjectTarget;
+    /** Create an isolated session in its own git worktree (ADR 0329). */
+    isolated?: boolean;
+  }) => Promise<void>;
   forkSession: (id: string) => Promise<void>;
   forkAssistantMessage: (messageId: string) => Promise<void>;
   configureActiveSession: (config: {
@@ -376,7 +387,13 @@ export type AppState = {
   activeWorkPanelTabId: string | null;
   /** Runtime-only work panel state owned by each conversation. */
   workPanelContexts: Record<string, WorkPanelContext>;
+  /** The user's preferred panel width; persisted, never below the regular minimum. */
   workPanelWidth: number;
+  /**
+   * Runtime-only width a manual sidebar reopen lends to the sidebar. It ends
+   * when the sidebar collapses or the user resizes the panel.
+   */
+  workPanelYieldedWidth: number | null;
   /** Chat-initiated "preview this file" request consumed by the files viewer. */
   workPanelFileRequest: {
     path: string;
@@ -408,6 +425,7 @@ export type AppState = {
   /** Hide the visible panel while retaining its session-owned context. */
   resetWorkPanelContext: () => void;
   setWorkPanelWidth: (width: number) => void;
+  setWorkPanelYieldedWidth: (width: number | null) => void;
   openFileInWorkPanel: (
     path: string,
     mimeType?: string,

@@ -75,6 +75,16 @@ export type AppSettings = {
   promptEnhancementThinkingLevel?: ThinkingLevel;
   defaultPermissionMode?: GlobalPermissionMode;
   theme: ThemePreference;
+  /**
+   * macOS only: keep the native `sidebar` vibrancy material behind a
+   * transparent window surface. This is the shipped look, so absent and `true`
+   * both mean translucent; `false` paints an opaque surface, which keeps the
+   * window out of WindowServer's per-frame recomposition path (#1064) at the
+   * cost of the desktop blur. Other platforms ignore it. Electron fixes
+   * `transparent` when the window is created, so a change applies on the next
+   * launch.
+   */
+  macosWindowTranslucency?: boolean;
   /** UI language; `auto` (and absent) follows the OS locale. */
   language?: "auto" | "en" | "zh-CN" | "zh-TW" | "tr" | "de" | "es" | "fr" | "ko" | "pt-BR";
   /**
@@ -88,7 +98,30 @@ export type AppSettings = {
    * Absent means 1. Range 0.8–1.5 in 0.025 steps. Window zoom is independent.
    */
   fontScale?: number;
-  /** Transcript presentation only; absent means detailed. Reasoning is retained. */
+  /**
+   * Show model reasoning in the transcript. Off keeps the live thinking
+   * indicator visible and hides completed reasoning rows and excerpts; absent
+   * falls back to the legacy `thinkingDisplayMode`. This is a presentation
+   * preference only: it never changes model thinking levels, stored reasoning,
+   * export, or execution, and it does not control turn-process folding.
+   */
+  showThinking?: boolean;
+  /**
+   * Keep shell calls (`Bash`, `exec`, `shell`, …) as their own rows instead of
+   * folding them into the surrounding tool group. Absent means `true`, so an
+   * existing install keeps today's scannable command rows.
+   *
+   * The turn's process disclosure itself is not affected: both values render
+   * exactly one top-level disclosure per turn. This preference only decides
+   * whether a run row sits inside a group or beside it.
+   */
+  keepCommandsExpanded?: boolean;
+  /**
+   * @deprecated Retained for persisted-settings compatibility. New writes use
+   * `showThinking`; this field is read only as a fallback when `showThinking`
+   * is absent. An explicit `compact` hides reasoning; `detailed`, an unknown
+   * value, or an absent field shows it.
+   */
   thinkingDisplayMode?: "detailed" | "compact";
   /**
    * @deprecated Unreleased D343 px field. Reads migrate into `fontScale`
@@ -157,6 +190,22 @@ export type AppSettings = {
    * platforms. Absent and false mean the system manages sleep normally.
    */
   preventScreenSleep?: boolean;
+  /**
+   * Sidebar project "running" affordances. The master switch gates both
+   * sub-switches; absent means enabled — the renderer normalizes
+   * `!== false` to on, so a fresh install shows the running badge and rail
+   * until the user turns them off (#1749).
+   */
+  sidebarRunningIndicators?: boolean;
+  /** Count badge beside a project name. On unless explicitly disabled. */
+  sidebarRunningBadge?: boolean;
+  /** Activity rail down the project group. On unless explicitly disabled. */
+  sidebarRunningRail?: boolean;
+  /**
+   * Last-reply date shown at the right edge of session rows. Absent means
+   * disabled, so a fresh install shows a clean sidebar until the user opts in.
+   */
+  sidebarSessionTime?: boolean;
   /** Voice input settings (D-voice-runtime). */
   voice?: VoiceInputSettings;
   onboardingDismissed: boolean;

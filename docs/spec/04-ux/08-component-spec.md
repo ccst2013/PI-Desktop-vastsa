@@ -117,7 +117,11 @@ Outer frame that positions Topbar, Sidebar, MainChat, and WorkPanel. Owns resize
   stay mounted but are hidden with `visibility: hidden` +
   `content-visibility: hidden` — never `display: none`, which would destroy the
   layout box and its scroll offset — and are `aria-hidden` and non-interactive.
-  Evicting a pane makes its session behave like a cold open on the next visit.
+  Eviction releases the DOM, not the renderer-lifetime reading bookmark. On
+  return, restore the bookmarked message and its viewport offset, loading a
+  bounded historical range when necessary without search focus/highlighting.
+  Explicit disclosure choices and the mounted-window budget survive eviction;
+  bookmarks do not persist across renderer/app restarts.
 - A pane renders the store's live `messages` while its session is the active one
   and its retained snapshot otherwise, so no pane can show another session's rows.
   While a session is running, or still holds live rows the durable page has
@@ -146,23 +150,34 @@ Outer frame that positions Topbar, Sidebar, MainChat, and WorkPanel. Owns resize
 | Windows | Frameless 46px titlebar; sidebar actions at left; work-panel toggle then minimize/maximize/close stay viewport-fixed at the window's top-right | None inside the window |
 | Linux | Frameless 46px titlebar; sidebar actions at left; work-panel toggle then minimize/maximize/close stay viewport-fixed at the window's top-right | None inside the window |
 
-- macOS enables the native Electron `vibrancy: "sidebar"` source-list material
-  with `visualEffectState: "followWindow"` and a transparent window backing
-  (D348). `nativeTheme.themeSource` follows the app theme preference (`system` /
-  `light` / `dark` / plugin base) so the material's light or dark plate matches
-  the renderer. Vibrancy is re-applied only when that source changes; a missing
-  plugin theme falls back to `system`. Main and settings navigation share the
+- macOS paints a **translucent** native window surface (ADR 0332): the native
+  `vibrancy: "sidebar"` material with `visualEffectState: "followWindow"` behind
+  a transparent Electron backing. A material behind a transparent surface is
+  recomposited by WindowServer on every frame the window stays dirty, which held
+  an idle focused window near 40% GPU on Apple Silicon (issue #1064); the
+  `Translucent window` switch is the opt-out for that cost, not the way back to
+  the shipped look. `nativeTheme.themeSource` still follows the app theme
+  preference (`system` / `light` / `dark` / plugin base), and a missing plugin
+  theme falls back to `system`. Main and settings navigation share the
   `.sidebar-surface` material, alongside any rendered `.sidebar-rail`; the
   settings shell ancestry is transparent but its content pane and titlebar stay
   opaque. The renderer adds a thin theme tint
   (`--ds-sidebar-glass-tint`, 40% dark / 55% light) plus a top/bottom sheen.
-  The dock carries no seam or hairline: the glass meets the opaque main pane
+  The dock carries no seam or hairline: the sidebar meets the opaque main pane
   flush, so the only edge cue is the tint's natural change against the pane.
   The material carries the blur, so the tint must stay thin — the sheen is what
   keeps the surface reading as glass rather than a painted panel.
   `.main-pane`, `.main-titlebar`, and `.conversation-topbar` remain opaque
   `bg-primary` surfaces, so vibrancy does not spread across the whole window.
   Windows/Linux retain their existing opaque background and frameless behavior.
+- Settings → General → Appearance → **Translucent window** (macOS only) is on
+  by default and turns the material off: an opaque window paints the host or
+  plugin palette and leaves WindowServer's per-frame recomposition path, while
+  the renderer keeps the same tint and sheen. The choice is read when the main
+  window is created, so the row shows a restart hint until the app is
+  relaunched. A translucent window owns its pixels — neither the
+  `window.setBackgroundColor` IPC nor the post-creation background paint touches
+  it, because a colour over the transparent backing flattens the material.
 - The macOS system menu exposes New Task, Open Project, Settings, Command
   Palette, Sidebar, standard editing, zoom/fullscreen, window, Help, Logs, and
   Check for Updates actions. Windows/Linux expose equivalent product actions
@@ -187,10 +202,12 @@ Outer frame that positions Topbar, Sidebar, MainChat, and WorkPanel. Owns resize
   focused Windows taskbar button also uses native minimize; a second click
   restores/focuses the same window, while clicking a covered window brings it
   to the front. Tray activation restores and focuses tray-hidden windows; Quit
-  remains explicit and, except for automated probes, confirms with a native
-  warning before shutdown (D363). On macOS the tray uses a transparent monochrome template
-  of the PI mark rather than the rounded application tile, so it remains
-  readable in the menu bar.
+  remains explicit and, except for automated probes, restores a tray-hidden main
+  window before showing a themed confirmation with Cancel focused. Escape or a
+  backdrop click cancels. If the main renderer is unavailable, a native warning
+  is the bounded fallback before shutdown (D363). On macOS the tray uses a
+  transparent monochrome template of the PI mark rather than the rounded
+  application tile, so it remains readable in the menu bar.
 - Windows/Linux do not render File/Edit/View/Window/Help in the titlebar and
   do not reserve left-side space for an application menubar. F10 and
   Shift+F10 remain available to focused content.
@@ -435,6 +452,7 @@ visually distinct from list content.
 | Session completed | Green check mark from the latest unread task notification when the row is not selected |
 | Session failed | Red circled alert mark from the latest unread task notification when the row is not selected |
 | Hover row | Project headers and all conversation rows share one full-row `--ds-bg-hover` surface, radius and transition; selected conversation fill takes precedence |
+| Project session metadata | When Session time is enabled, the trailing slot shows the last-reply date at rest and replaces it with session actions on hover or keyboard focus, without a divider. Dates within seven calendar days are relative; older dates show localized month and day without a year |
 | Current workspace | Project header shows the workspace dot, never a persistent selection fill; topbar follows that workspace; composer exposes no workspace identity |
 | Navigation selection | Only the selected conversation on the chat page uses `--ds-bg-active`, including pinned and standalone rows; folding its group never transfers selection to the header. No conversation or a non-chat page means no selected conversation row |
 | Keyboard focus | The focused control keeps its visible outline; the project title stays transparent and independent action buttons retain their own hover feedback |
@@ -589,9 +607,9 @@ visually distinct from list content.
   and Open session path (the session scratch directory in the system file
   manager).
 - Pinned conversations appear once in a global section above Sessions and
-  Projects, independent of date buckets, project collapse, retained tabs, and
-  each project's ten-row history limit. Each pin shows its project display
-  name (full path on hover), or Temporary space for a path-less conversation.
+  Projects, independent of project session dates, project collapse, retained
+  tabs, and each project's ten-row history limit. Each pin shows its project
+  display name (full path on hover), or Temporary space for a path-less conversation.
   The section is omitted when empty and scrolls within `min(233px, 30vh)` when
   needed. Its rows reuse normal selection, status, hover, and overflow actions.
 - Pinning moves the existing row into that section; unpinning returns it to
@@ -733,7 +751,7 @@ controls.
 | Project archive | omitted from default view; restorable from archived view |
 | Project delete | the row-menu danger action always opens a confirmation dialog naming the project and session count; X, Cancel, Escape, and backdrop dismiss without changes; explicit confirmation stops listed running sessions before removing the durable project row, owned sessions/transcripts, and project memory; the folder is never deleted; deleting a root of a stored multi-folder project group is refused until the root is detached through Edit project. Chats on a detached root remain available as a standalone project. A path the host no longer knows is still removed from the list. |
 | Project memory | row-menu editor reads and saves a compact list of titled or untitled memory cards for the exact project path; cards can be added, edited, and removed, the context is available in later chats, and it is never a higher-priority instruction |
-| Session list | exact-path matches only; no basename grouping; the latest ten unpinned sessions appear initially, Load more reveals the remaining history, and collapsing the project clears that expanded-list state so the next expansion returns to the initial ten |
+| Session list | exact-path matches only; no basename grouping; the latest ten unpinned sessions appear initially without time-group headings, and Load more reveals the remaining history; when Session time is enabled, each project row shows the title and a localized last-reply age through seven calendar days or a month/day date afterward; hovering or focusing the row replaces that date with session actions in the same slot; collapsing the project clears the expanded-list state so the next expansion returns to the initial ten |
 | Active group | exactly one group reflects the selected host workspace |
 | Task state | In-progress, selected, completed, and failed indicators update by session without replacing the visible transcript; precedence is in-progress, selected, then terminal outcome |
 
@@ -845,47 +863,78 @@ reading surface of the workstation.
 
 ### Turn process and thinking display
 
-Both Detailed and Compact project each loaded assistant turn into one whole-process
-disclosure containing reasoning, tools, hosted searches and intermediate assistant
-text in transcript order. The trailing answer streams outside that disclosure;
-later activity can reclassify provisional answer text into the process without
-changing the stored message. Assistant errors and stopped trailing partial answers
-also stay outside it. User/system messages and compaction boundaries are unchanged.
+One unified turn-process presentation projects each loaded assistant turn into a
+single collapsible process disclosure plus its trailing answer. Reasoning, tools,
+hosted searches and intermediate assistant text keep their transcript order inside
+that disclosure. The trailing answer streams outside the process; later activity
+can reclassify provisional answer text into the process without changing the
+stored message. Assistant errors and stopped trailing partial answers also stay
+outside it. User/system messages and compaction boundaries are unchanged.
+
+The disclosure owns every row the turn produced before its answer: ordinary
+activity groups and `Bash` run rows alike. A turn therefore renders exactly one
+top-level process disclosure, including a Bash-only turn; no run row is a sibling
+of it, and a long turn collapses in one gesture. The answer, assistant errors,
+stopped trailing partial text and pending action cards remain outside, reachable
+without expanding the process.
 
 Within the process, an ordinary activity group represents one contiguous
-tool/search/thinking segment between progress paragraphs. It renders a group header
-only when the current mode has two or more visible items. A singleton uses its item
-disclosure directly, compact-hidden thinking never creates an empty wrapper, and
-the existing Task topology remains the container for delegated work.
+tool/search/thinking segment between progress paragraphs or run rows. It renders a
+group header only when at least two items are visible under the current thinking
+preference. A singleton uses its item disclosure directly, hidden thinking never
+creates an empty wrapper, and the existing Task topology remains the container for
+delegated work.
 
-Detailed opens whole-process disclosures while a turn is active. When a turn
-settles, an untouched process defaults closed; an explicit user choice remains
-authoritative. The ordinary group owning the active execution segment starts
-open, then closes on completion only if untouched; other completed groups start
-closed. Compact starts the process and ordinary groups closed. Its untouched
-active process remains open when any failed or denied tool has been recorded,
-through later successful recovery, and closes on completion if still untouched.
-Group headers summarize count, running state and issue count without treating a
-failed child as a failed turn.
+`keepCommandsExpanded` decides where a run row sits inside that disclosure and
+defaults to on. When on, `Bash` and run aliases are lifted out of the groups they
+ran among and render as their own rows at the disclosure's top level; adjacent
+calls stay separate and a row's detail stays closed until the user opens it. When
+off, a run row keeps its place in the flow and reads as another line of the group
+around it. Neither value changes the disclosure count, what a tool received, or
+what is stored.
 
-No item payload opens itself in either mode: a tool, hosted-search or plan call
-stays a header row until the user opens its disclosure. The activity group and
-the whole process keep their automatic open defaults, so a live turn still shows
-its work. Compact keeps all tool/search payloads closed and suppresses reasoning
-text and excerpts; only its active thinking indicator remains.
+The ordinary group owning the active execution segment starts open while a turn is
+active, then closes on completion only if untouched; other completed groups start
+closed. An untouched active group remains open when any failed or denied tool has
+been recorded, through later successful recovery, and closes on completion if still
+untouched. These group defaults are unified and do not depend on either
+preference. Group headers summarize count, running state and issue count without
+treating a failed child as a failed turn.
 
-Whole process, group and item are independent controls. Closing an ancestor keeps
-descendant choices and reopening restores them; opening a parent never expands all
-children. User interaction with a child claims its ancestors without toggling them,
-so completion cannot close around opened, focused or selected content. Choices use
-stable turn/group/item identities and remain while the retained session pane lives,
-including mode changes and row remounts; pane eviction, deletion or renderer restart
-reapplies defaults rather than persisting disclosure state to messages or settings.
+The turn disclosure header states the turn's outcome and never echoes the item it
+is working on, because a shell command or search query can be arbitrarily long. It
+reads `Failed`, `Stopped`, `Running`, or `Finished`, with failure outranking stop,
+stop outranking completion, and a live turn reporting running. While running,
+stages a reader can sit in front of (compaction, recovery) name themselves; a
+live reasoning step reads `Thinking`, and momentary stages read as plain running.
+Elapsed time is omitted when the
+transcript recorded no timing rather than shown as zero, and issue counts sit
+beside the label. The disclosure and the levels it reveals share one left edge;
+hierarchy is carried by type size and colour, not by indentation, so a nested
+group header and a run row start exactly where the turn header does.
 
-Search/navigation reveals the process and the activity group that own the named
-message, and applies each reveal request once. Item-level targeting is not part
-of this change. Compact reasoning stays hidden until
-the user selects Detailed. Permission, question, plan/goal approval and other
+No item payload opens itself: a tool, hosted-search or plan call stays a header row
+until the user opens its disclosure, including a Bash row, whose detail stays closed
+until the user opens it. The activity groups keep their automatic open defaults, so
+a live turn still shows its work. When the `Show thinking` preference is off, the
+live thinking indicator stays visible while completed reasoning rows and excerpts
+are suppressed and empty thinking-only containers are omitted; the stored reasoning
+is retained and reappears when the preference is turned back on.
+
+Group, run row and item are independent controls. Closing an ancestor keeps
+descendant choices and reopening restores them; closing the turn's disclosure hides
+every row under it, and reopening restores the groups the user had opened. Opening
+a parent never expands all children. User interaction with a child claims its
+containing group without toggling it, so completion cannot close around opened,
+focused or selected content. Choices use stable turn/group/item identities and
+remain while the retained session pane lives, including preference changes and row
+remounts; pane eviction, deletion or renderer restart reapplies defaults rather
+than persisting disclosure state to messages or settings.
+
+Search/navigation reveals the turn process and the activity group that own the
+named message, and applies each reveal request once. Item-level targeting is not
+part of this change. Reasoning hidden by the preference stays hidden until the user
+turns `Show thinking` on. Permission, question, plan/goal approval and other
 pending action cards remain reachable outside a hidden process. See
 [ADR turn-process-and-thinking-display](../../adr/turn-process-and-thinking-display.md).
 
@@ -1036,9 +1085,15 @@ entirely inside the plugin's isolated page:
   without walking the whole workspace up front. Search (`fs.glob`-equivalent
   filename matching) lists hits without expanding the tree, and refresh
   disables itself while it reloads the root and the expanded folders.
-- A context menu on a row offers create, rename/move, **Open with default app**,
-  and **Show in folder**. The last two are offered for files only: the host
-  refuses them for directories.
+- A row context menu is grouped and ordered as Open With, Create, Rename / Move /
+  Delete, Copy Paths, file actions, and Refresh. Open With includes **Open in
+  built-in Browser** for `.html`, `.htm`, and `.xhtml` files plus **Open with
+  default app**; create actions remain available for files and directories,
+  while rename, move, delete, copy, and file actions follow their applicable
+  selection. The default-app action is disabled for directories, while editor
+  choices remain available. The Browser action opens a new Browser resource tab
+  and requires the bundled Browser plugin to be enabled. **Show in folder**
+  remains a file action. The host refuses directory paths for file actions.
 - Selecting a file replaces the tree with a focused viewer: syntax-highlighted
   editing with save, a Markdown preview toggle, image and audio/video viewing,
   CSV/TSV tables with paging and sorting, a JSON tree, and read-only SQLite
@@ -1064,7 +1119,7 @@ entirely inside the plugin's isolated page:
 - The page follows `app.getAppearance` and `appearance:changed` for base theme
   and English/Simplified Chinese copy, and `workspace:changed` for the open
   project and its folder list. `workspace.get`, `app.getAppearance`,
-  `fs.openDefault`, and `fs.reveal` are the only host channels it calls; its own
+  `fs.openDefault`, `fs.openInBrowser`, and `fs.reveal` are the only host channels it calls; its own
   reads and writes go through its host process, which keeps the jail of the one
   folder the view is browsing — never the whole group — refuses credential
   paths, and records writes to its own audit log (ADR 0241, ADR 0263).
@@ -2213,7 +2268,8 @@ quotes and cell line breaks are escaped, and formula-leading nonnumeric cells
 are exported as text. Clipboard failures produce an error toast.
 
 The expanded view uses a modal dialog with the existing theme tokens, a scrollable
-table and opaque sticky headers, and copy/download controls. Columns retain
+table with visible scrollbars whenever either axis overflows, opaque sticky
+headers, and copy/download controls. Columns retain
 readable minimum widths; narrow previews scroll horizontally instead of crushing
 short labels. It follows streamed rows,
 contains keyboard focus, closes with Escape or Close, and restores focus to its
@@ -2231,14 +2287,20 @@ Lightweight inline disclosure row showing a semantic tool action, its primary
 argument hint, status, and a readable rendering of the result. It follows D071
 and is intentionally not an elevated card.
 
-One contiguous tool/search/thinking segment between progress paragraphs becomes an
-ordinary processing group only when it has two or more visible items. A singleton
-uses its item disclosure directly, and Task topology keeps its existing container.
-While the turn is active, the ordinary group owning the execution segment opens in
-Detailed and remains closed in Compact; when it settles, an untouched Detailed
-group closes. No item payload opens itself in either mode: a tool, hosted-search
-or plan row stays a header row until the user opens it, whichever item of the
-group it is. Compact keeps every tool/search payload closed.
+The turn's process is one disclosure. Inside it, one contiguous
+tool/search/thinking segment between progress paragraphs or run rows becomes an
+ordinary processing group only when it has two or more visible items under the
+current thinking preference. A singleton uses its item disclosure directly, and
+Task topology keeps its existing container. `Bash` and run aliases stay inside the
+turn's disclosure: with `keepCommandsExpanded` on (the default) each renders as
+its own row beside the groups, and adjacent calls remain separate; with it off a
+run row stays in the flow of its group. A Bash-only turn still has its one
+disclosure. While the turn is active, the ordinary group owning the execution
+segment opens; when it settles, an untouched group closes. These group defaults do
+not depend on the thinking preference. No item payload opens itself: a tool,
+hosted-search or plan row stays a header row until the user opens it, whichever
+item of the group it is, including a Bash row whose detail stays closed until
+opened.
 
 The group header shows `Processing · 12s` while active or `Processed for 12s`
 after completion, plus bounded item and issue counts. Expanding it reveals the
@@ -2246,7 +2308,7 @@ ordered activity rows and their independent result disclosures. A failed child
 remains an error on its own ToolCallRow but does not make the group or whole turn
 terminally failed; terminal agent errors remain owned by the assistant error or
 TurnOutcomeCard surface. A user action on a group, item, or collapse rail claims
-that level and its ancestors without toggling them, so streaming and completion
+that level and its containing group without toggling them, so streaming and completion
 never reverse the chosen state or close around focused/selected content.
 Elapsed labels use compact automatically carried units: seconds below one
 minute, minutes plus seconds below one hour, and hours plus minutes (and
@@ -2267,12 +2329,19 @@ seconds when non-zero) from one hour onward. Zero-value units are omitted, so
 - The leading Lucide icon reflects the action type: file, folder, search,
   edit, terminal, web, or generic tool.
 - A multi-item group header owns elapsed time plus item and issue counts and stays
-  in the transcript after completion. In Detailed the active group starts open and
-  closes on completion only if untouched; completed groups otherwise start closed.
-  Compact groups start closed. A singleton has no group header.
-- Tool/search payloads stay collapsed in both modes until the user opens them; no
-  row auto-opens, so a final thinking item never selects an earlier tool. Live
-  thinking follows its own disclosure policy and never opens sibling payloads.
+  in the transcript after completion. The active group starts open and closes on
+  completion only if untouched; completed groups otherwise start closed. These
+  defaults do not depend on the thinking preference. A singleton has no group
+  header.
+- Tool/search payloads stay collapsed until the user opens them; no row
+  auto-opens, so a final thinking item never selects an earlier tool. Live
+  thinking follows its own indicator/disclosure policy and never opens sibling
+  payloads.
+- `Bash` and run rows are revealed by the turn's process disclosure. With
+  `keepCommandsExpanded` on they sit at its top level beside the groups and
+  adjacent rows stay separate; with it off they render inside their group. They
+  are never siblings of the turn's process, and their details stay closed until
+  opened.
 - The processing group spans the full available assistant column, so expanded
   result details keep a usable width even when the header or payload is short.
 - The visible label is a natural-language action (`Read`, `Ran`, `Searched`),
@@ -2345,16 +2414,16 @@ twice.
 
 | State | Header treatment | Expanded content |
 |---|---|---|
-| Running | Progressive action with readable text and a pulsing marker; a `run` row also shows its spinner and pulses the status dot beside `Working…` | Detailed opens the active multi-item group; no item payload opens itself. Compact payloads stay closed; live thinking follows its own indicator/disclosure policy |
+| Running | Progressive action with readable text and a pulsing marker; a `run` row also shows its spinner and pulses the status dot beside `Working…` | The active multi-item group opens; no item payload opens itself; live thinking follows its own indicator/disclosure policy |
 | Success | Past-tense action + result chips; no green success badge, except a `run` row's dot and `Done` | Result blocks, then arguments if not already shown; an untouched active group closes on completion, while manual group and item choices are retained |
 | Error | Past-tense action + compact danger status; details remain collapsed by default and open only on user request. A `run` row is in this state whenever its command exited nonzero, whatever the call reported (D227) | Error note first, then arguments |
 | Denied | Muted `Denied` status; payload remains closed until requested | Permission result when available |
 
 ### 9.6 Interactions
 
-- Click the row: expand/collapse only that result payload. Compact payloads start
-  closed. No payload opens itself in either mode, so the row the user opens is the
-  only expanded one; failed and denied rows behave the same.
+- Click the row: expand/collapse only that result payload. Payloads start
+  closed. No payload opens itself, so the row the user opens is the only expanded
+  one; failed and denied rows behave the same.
 - A file path that a row or its result names is a link, not decoration: clicking
   the summary path of a `Read`, `Write`, `Edit`, or `fetch` row, or a path in a
   result's file list or match groups, completes the reference through the same
@@ -2366,14 +2435,14 @@ twice.
   disclosure, and a reference that matches nothing reports itself without
   opening a panel. A tool surface picks no destination of its own.
 - Click the processing header: expand/collapse only that ordered activity list.
-  Detailed opens the active group and closes it on settlement only if untouched;
-  completed groups otherwise start closed. Compact groups start closed. Opening a
-  group does not expand every item, and sibling groups remain independent.
+  The active group opens and closes on settlement only if untouched; completed
+  groups otherwise start closed. Opening a group does not expand every item, and
+  sibling groups remain independent.
 - Click or keyboard-activate the left rule beside expanded thinking, tool details,
   delegated work, or processing steps: collapse that owning disclosure without
   changing adjacent expansion state. Item interaction also claims its containing
-  group and whole process as user-owned without toggling them; automatic stream or
-  completion transitions never reverse those states.
+  group as user-owned without toggling it; automatic stream or completion
+  transitions never reverse those states.
 - A failed child row remains error-hued and reports its failure in the row header,
   but its payload is not auto-expanded. The containing group settles as
   `Processed for {elapsed}` with an issue count even when a later tool recovered.
@@ -2833,11 +2902,13 @@ reasoning-level control.
 - Padding: px-4 py-3 inner textarea
 - Font: text-sm for Agent, Plan, and Goal; mode changes semantics and tool
   controls, not the typography
-- The Agent/Plan/Goal mode chip reserves one fixed 88px width, sized from the
-  longest built-in label in English and zh-CN ("Agent" / "智能体"). Its label
-  stays single-line and ellipsizes if a future locale exceeds that budget, so
-  switching modes never reflows the adjacent Composer controls. Cycling the
-  chip cross-fades the icon and label in place. While the live turn is
+- The Agent/Plan/Goal mode chip reserves one fixed 96px width, sized from the
+  longest built-in label in English and zh-CN ("Agent" / "智能体") plus its
+  menu caret. Its label stays single-line and ellipsizes if a future locale
+  exceeds that budget, so switching modes never reflows the adjacent Composer
+  controls. The chip names the committed mode and opens one menu listing the
+  three modes, each a checked menu item; choosing one closes the menu and
+  configures the active session. While the live turn is
   `planning`, the chip pulses on its icon (purple) instead of leaving a
   second status row parked above the composer; a staged mode choice still
   updates the chip immediately and does not start that pulse until the
@@ -2922,9 +2993,15 @@ reasoning-level control.
 - The Composer stack places TodoDock above Plan/Goal approval surfaces when the
   active session has a non-empty host-owned checklist. An empty checklist does
   not reserve layout space.
-- The collapsed header shows completed/active progress and the current
-  `in_progress` content. A checklist whose items are all cancelled has a clear
-  cancelled label instead of a misleading `0/0 completed` count.
+- The header keeps progress and current `in_progress` content left-aligned, and
+  places an independent expand/collapse button at the right edge. Only that
+  button toggles the list; the text area is not interactive. Its arrow points
+  up while collapsed because the list opens upward from the Composer, then
+  points down while expanded. The button provides a 36px square hit target,
+  with its 18px arrow icon sized independently. The current task title truncates
+  when space is limited.
+  A checklist whose items are all cancelled has a clear cancelled label
+  instead of a misleading `0/0 completed` count.
 - The disclosure is keyboard accessible, does not take focus on updates, and
   resets closed when the active session changes. The expanded dock lists every
   ordered row and scrolls inside its own box (`max-height: min(280px, 30dvh)`,
@@ -2936,9 +3013,19 @@ reasoning-level control.
   collapsed content is `aria-hidden` and reduced-motion users receive an
   immediate state change. A collapsed dock reserves only its header row: the
   list's inset is clipped, never laid out below the header.
-  Completed rows use a success-tinted tile with a check icon, in-progress rows
-  use the accent tint, and cancelled rows are muted. Each status symbol has a
-  localized accessible name, and each row renders plain text.
+  Expanded rows are a plain text list: a glyph status mark, then the task text.
+  The mark is a glyph rather than a bordered box, so no row regains per-row
+  chrome. Completed task text is struck through and muted; cancelled rows are
+  muted; the in-progress row remains primary and medium-weight. Each status
+  symbol has a localized accessible name, and each row renders plain text.
+- The only motion is a light band sweeping across the text of the step that is
+  currently working. It is painted into the text itself
+  (`-webkit-background-clip: text`), so no row changes shape, gains a fill, or
+  reserves space for it. Exactly one string carries it at a time: the collapsed
+  header's current-item line while collapsed, and the in-progress row while
+  expanded. The list stays mounted behind the disclosure, so the collapsed
+  state must not sweep the same text twice. A `prefers-reduced-motion` user
+  gets flat primary ink instead of a frozen band.
 - Renderer snapshots are keyed by session id. A `todos.changed` event with an
   older or equal revision is ignored. Session activation and host recovery
   re-read the authoritative snapshot, including already cached checklists; a
@@ -3090,7 +3177,7 @@ reasoning-level control.
   to Off-only. An active pending Plan or Goal approval still disables these
   controls. Approval actions are the exception while awaiting approval. The
   Composer-left Agent/Plan/Goal chip is the sole mode
-  control and cycles Agent → Plan → Goal → Agent on click. The Composer-right
+  control and opens the mode menu on click. The Composer-right
   model × reasoning chip owns both selections. Palette and Composer slash mode commands use the
   same active-session configuration path; after host confirmation resolves an
   approval, the approval surface is removed rather than remaining as a terminal
@@ -3396,9 +3483,13 @@ Anatomy:
   hints can still truncate when they themselves exceed the available row width;
   neither command rows nor file rows overflow the menu.
 - File mode (`@` token at cursor, boundary-preceded): rows persistently show
-  only the leaf file or directory name; directories get a trailing `/` and
-  continue completion on accept. The complete relative path remains available
-  through the row tooltip and accessible name. Accepting a completed file
+  the leaf file or directory name followed by the entry's complete
+  workspace-relative path in a de-emphasized mono span; directories keep a
+  trailing `/` on the leaf name and continue completion on accept, and the
+  path span renders the raw `entry.path` without a trailing slash. The path
+  span takes the row's remaining width and ellipsizes before the leaf name
+  can, while the row tooltip and accessible name still carry the complete
+  relative path. Accepting a completed file
   (Enter, Tab, or click) replaces the `@` token with an inline leaf-name chip
   at the caret — the same sentinel-backed chip as a pasted file — whose
   canonical value is the original `entry.path`; the menu closes and that Enter
@@ -3525,13 +3616,13 @@ Anatomy:
   primary-folder file is addressed to the view as a project-relative path and a
   sibling-folder file as an absolute one, which is also how scratch and
   attachment files are addressed. A reference that matches no file opens nothing
-  and reports itself, as does right-clicking it: the file-reference menu offers
-  that file's own folder in the system file manager and copies its full path or
-  its project-relative path. The same items are offered on a sent `@path` chip,
-  an inline code span, a markdown link, a local image, a tool row's file path,
-  and a path in a tool result's file or match list, through the same completion
-  and the same address; a file outside the project has no relative path to copy
-  and says so instead.
+  and reports itself. Right-clicking a transcript file reference offers Copy
+  full path and Copy relative path on every surface that names it. Unpositioned
+  `.html` and `.htm` references also offer an **Open with** submenu containing
+  File Manager, built-in browser, and default browser. Each choice completes the
+  reference first and opens that exact resolved file. Other file types keep the
+  copy actions only; the transcript menu has no **Show in folder** action. A
+  file outside the project has no relative path to copy and reports that fact.
   The OS default application is no longer what this click does. HTTP(S)
   URLs stay text links. Plain clicks follow the Link open destination setting,
   and right-clicking a URL exposes the same external, work-panel, and copy

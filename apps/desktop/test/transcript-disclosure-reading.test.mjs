@@ -29,7 +29,7 @@ test("automatic disclosure does not claim a reading position", () => {
   // the scroll anchor notifier reserved for direct user interaction.
   assert.match(disclosure, /if \(previousOpen\.current && !open && !choice && ownsReadingPosition/);
   const revealEffect = disclosure.match(
-    /useLayoutEffect\(\(\) => \{\s*if \(revealRequest === undefined[\s\S]*?\n  \}, \[choices, key, parent\.claim, revealRequest\]\);/,
+    /useLayoutEffect\(\(\) => \{\s*if \(revealRequest === undefined[\s\S]*?\n  \}, \[choices, key, scope\.claim, revealRequest\]\);/,
   )?.[0];
   assert.ok(revealEffect, "the automatic reveal effect is missing");
   assert.doesNotMatch(revealEffect, /notifyAnchor/);
@@ -91,7 +91,7 @@ test("holding a disclosure leaves follow without a delayed grab-back", () => {
   // on real input or an explicit re-pin, never by taking the bottom back later.
   assert.match(
     transcript,
-    /const releaseFollow = useCallback\(\(\) => \{\s*cancelFollowScroll\(\);\s*pinnedRef\.current = false;\s*setShowJump\(true\);/,
+    /const releaseFollow = useCallback\(\(\) => \{\s*cancelReadingPosition\(\);\s*cancelFollowScroll\(\);\s*pinnedRef\.current = false;\s*setShowJump\(true\);/,
   );
   assert.match(
     transcript,
@@ -117,7 +117,7 @@ test("real input, a new turn and every navigation drop the held position", () =>
   );
   assert.match(
     transcript,
-    /const jumpToLatest = useCallback\(\(\) => \{\s*releaseDisclosureAnchor\(\);\s*pinnedRef\.current = true;/,
+    /const jumpToLatest = useCallback\(\(\) => \{\s*cancelReadingPosition\(\);\s*releaseDisclosureAnchor\(\);\s*pinnedRef\.current = true;/,
   );
   assert.match(
     transcript,

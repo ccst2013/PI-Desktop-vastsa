@@ -89,6 +89,26 @@ both source and copied files. An interrupted copy may be retried only with its
 matching ownership marker; nonempty/unrelated destinations and overlapping roots
 are rejected. The stable installation lock prevents competing managed launches.
 
+Filesystem maintenance uses Electron's `original-fs`: archives such as `app.asar`
+inside session scratch or downloaded applications remain physical files, not
+virtual directories. Their bytes and adjacent `.asar.unpacked` directories migrate
+unchanged. Windows links are classified in one batch by their reparse-point
+kind, preserving junctions as junctions and symbolic links as symbolic links.
+For a symbolic link whose target exists, the target's kind determines whether
+it is recreated as a directory or file link; for dangling or unavailable
+targets, the link's own directory attribute determines that type. Internal
+targets are relocated without requiring them to exist.
+Windows absolute link targets are lexically normalized before creation and
+verification, so trailing separators from junctions do not cause false failures. Copy
+failures include the source and destination paths in the existing local error
+detail. They never skip an entry or publish the destination as the active profile.
+
+Confirming a directory selected in Settings creates it when it does not exist,
+including missing parent directories. Overlap checks run before creating anything.
+A first-install data root may be absent together with its parents; validation
+resolves the nearest existing ancestor without creating an unused old profile.
+This does not recreate an unavailable custom storage volume during startup.
+
 Rust's offline `--relocate-data <old-root> <copied-root>` mode owns structured
 path relocation in the copied SQLite index, transcripts/revisions/checkpoints,
 outbox, installed plugin registry and agent capability metadata. It does not boot
@@ -98,15 +118,38 @@ narrative text, commands, source code, secrets, and arbitrary plugin-private for
 are preserved. Credentials and their machine key migrate as bytes with their
 permissions. SQLite ownership stays exclusively in Rust.
 
+Relocated project database paths and project-memory/instruction keys retain the
+repository's normalized project-path spelling. In particular, Windows migration
+must not turn slash-normalized lookup keys into mixed-separator keys that make
+existing project memory appear empty after reopening the Host.
+
 Only after validation/relocation succeeds is the flushed bootstrap pointer
 atomically replaced. Errors keep the old profile active and visible in settings;
 retrying the same destination uses the failed job's ownership identity. A crash
 before publication leaves pending work to recopy from the source. An unavailable
 selected volume refuses startup rather than creating a blank profile elsewhere.
+If the managed installation's default data root is missing, startup pauses before
+loading app services and offers two recovery choices: create a fresh default data
+root or select an existing PI-Desktop storage root. The selected location must
+contain `data/pi.sqlite` or be the data directory containing `pi.sqlite`; its
+pointer is written only after validation. A sibling `browser/` directory is used
+when present, otherwise the installation's current browser root is retained.
+Dismissal exits without changing the pointer or creating a profile. Missing custom
+roots and pending cache/backup maintenance continue to refuse startup. A queued
+migration may resume with an absent default data root only when its browser root
+still exists, preserving first-install migration. An explicit `PI_DESKTOP_DATA_DIR`
+remains outside this recovery flow.
 Original directories remain explicit backups. Deleting these requires a separate
 settings confirmation after checking new-location functionality, including plugins
 that may own absolute references the host cannot safely rewrite. Backup cleanup
 preflights every root and protects active storage and bootstrap/lock files.
+The stable anchor retains Chromium's Windows `lockfile` alongside `Singleton*`
+and `storage-location.json`; these installation files are also excluded from
+browser-profile copies. Cleanup never releases the live single-instance lock.
+The exclusion applies only to the browser root, not same-named nested user files
+or files inside the host data root.
+Retry after a partially completed cleanup tolerates already-absent old roots,
+then clears the backup list only after the remaining cleanup succeeds.
 
 Cache cleanup is a separate confirmed cold-restart operation. Its filesystem
 allowlist is `cache/`, `plugins/cache/download/`, `plugins/cache/backup/`,
@@ -367,9 +410,17 @@ CREATE TABLE kv (
 | `plugin:<id>` | per-plugin settings; uninstall = `DELETE WHERE ns = ?` |
 | `projectMemory` | durable user-authored context keyed by canonical project path; structured values contain `format: "entries-v1"`, visual `entries`, derived `content`, and `updatedAt` |
 
-The app settings JSON optionally stores `thinkingDisplayMode` (`detailed` or
-`compact`). Missing values retain detailed presentation. This additive display
-preference neither rewrites stored reasoning nor changes the database schema.
+The app settings JSON optionally stores `showThinking` (boolean) for transcript
+reasoning visibility. It is a portable application preference and synchronizes
+across devices like the legacy field. Missing values fall back to the legacy
+`thinkingDisplayMode` field (`compact` hides, `detailed`/unknown/absent shows),
+which is retained only for persisted-settings compatibility and as that
+fallback. The app settings JSON optionally stores `keepCommandsExpanded`
+(boolean) for command-row placement inside a turn's process disclosure: absent
+means on, so `Bash` and run aliases stay on their own rows beside the activity
+groups; `false` folds them into their groups. It is a portable application
+preference and changes presentation only. These additive display preferences
+neither rewrite stored reasoning nor change the database schema.
 
 The settings blob may still contain legacy prompt-enhancement keys from an
 earlier release. They are retained for rollback and downgrade compatibility,
@@ -1439,9 +1490,11 @@ cached read is proportional to the requested page. Consequences:
 - A point read that finds an invalid indexed line boundary drops both cache
   layers, scans the complete transcript without consulting the disk cache, and
   retries once with message counts, page ranges, and message location recomputed
-  from the rebuilt layout. A real JSON, UTF-8, or I/O error from that complete
-  scan remains an error; the transcript is never rewritten or repaired by
-  replacing bytes or skipping messages.
+  from the rebuilt layout. Reads tolerate invalid UTF-8 within a complete line:
+  parseable records use U+FFFD for the damaged bytes, while records that remain
+  invalid JSON or do not match the record schema are skipped with a diagnostic.
+  Physical message-line positions stay consistent across bounded reads. The
+  transcript bytes are never rewritten; actual file I/O errors remain errors.
 - New cache files use a nonnumeric version header that older parsers safely
   reject and rebuild. Downgrading to an older app preserves the transcript and
   database, though that app's own cache defect may recur. No database or
@@ -1756,11 +1809,35 @@ migration is required.
 
 ## 12. Native Pi session authority (ADR 0254)
 
-Native Pi v3 sessions under the Pi agent session root are a second, explicitly
-source-discriminated transcript authority owned by the Node agent sidecar. They
-are never inserted into SQLite and never copied to the Desktop transcript
-directory. `session.list` merges their projections with Rust-owned
-Desktop summaries, and `session.get` routes by the opaque `native-pi:` id.
+Native Pi v3 sessions are a second, explicitly source-discriminated transcript
+authority owned by the Node agent sidecar. They are never inserted into SQLite
+and never copied to the Desktop transcript directory. `session.list` merges
+their projections with Rust-owned Desktop summaries, and `session.get` routes
+by the opaque `native-pi:` id.
+
+Discovery always walks the Pi agent session root recursively
+(`<agentDir>/sessions`, default `~/.pi/agent/sessions`). It also scans, without
+recursion, each `sessionDir` the pinned coding-agent `SettingsManager` resolves:
+an absolute or `~` value from global settings, and the merged global-plus-project
+setting for each known local project. Session files in a subdirectory of a
+configured `sessionDir` are ignored by that scan. A relative path resolves
+from that project's working directory, not from the Desktop process cwd.
+Remote project ids are skipped, and at most 500 local project paths are
+considered. A configured directory whose real path is the default root, or
+is inside it, is not scanned again. A file is listed only when its real
+path stays inside the default root or one of those directories. A symlink
+that escapes is omitted, and an in-directory symlink alias of a session
+file is not a second row. A nested file under a custom `sessionDir` is
+omitted when that directory is outside the default root. A `sessionDir` inside the default root is not scanned again, and
+the recursive default walk can still list nested JSONL there. Detail, prompt,
+and fork authorize a file against the default root, the session directories for
+the current project list, and any session directory that already admitted a
+file in this process, so a later empty project list does not revoke an open of
+a session that was already discovered. A child fork is still published beside
+its parent. A project Desktop
+has not yet recorded does not contribute a relative `sessionDir`. An absolute
+global `sessionDir` is scanned even when no project is known.
+
 Discovery deduplicates native files that share the same JSONL `header.id`,
 keeping the projection with the newest transcript `updatedAt`. The selected
 file retains its path-derived opaque session id; duplicate files are not

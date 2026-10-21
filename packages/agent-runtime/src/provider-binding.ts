@@ -42,6 +42,7 @@ import {
   type ThinkingLevel,
 } from "@pi-desktop/shared";
 import { genericModelConfig } from "./model-capabilities.js";
+import { sessionAffinityCompat } from "./session-affinity.js";
 import type { ModelConfig } from "./thinking-level.js";
 
 export type RuntimeProviderConfig = {
@@ -230,6 +231,15 @@ function providerRequestTransport(provider: RuntimeProviderConfig) {
   const resolvedProviderStyle = resolveApiStyle(provider.apiStyle);
   const providerStyle = resolvedProviderStyle ?? (provider.apiStyle ? normalizeApiStyle(provider.apiStyle) : undefined);
   const customEndpoint = provider.vendorKey?.trim().toLowerCase() === "custom";
+  const catalogBaseUrl =
+    provider.modelConfig?.source === "models.dev" ? provider.modelConfig.baseUrl : undefined;
+  const openCodeCatalogRoute =
+    provider.vendorKey?.trim().toLowerCase() === "opencode-go" &&
+    providerStyle === OPENCODE_GO_API_STYLE &&
+    catalogBaseUrl !== undefined &&
+    modelStyle === "anthropic_messages" &&
+    catalogBaseUrl.trim().replace(/\/+$/, "").toLowerCase() !==
+      provider.baseUrl?.trim().replace(/\/+$/, "").toLowerCase();
   const isOpenAiStyle = (style: string | undefined) =>
     style === "chat_completions" ||
     style === "responses" ||
@@ -247,10 +257,13 @@ function providerRequestTransport(provider: RuntimeProviderConfig) {
   // but foreign catalog protocols must not replace the provider's wire style.
   const apiStyle = customEndpoint
     ? provider.apiStyle ?? modelStyle
-    : (isCompatible ? modelStyle : undefined) ?? provider.apiStyle;
+    : (openCodeCatalogRoute || isCompatible ? modelStyle : undefined) ?? provider.apiStyle;
+  const baseUrl = openCodeCatalogRoute && catalogBaseUrl
+    ? catalogBaseUrl
+    : provider.baseUrl ?? provider.modelConfig?.baseUrl ?? apiBindingForStyle(apiStyle).defaultBaseUrl;
   return nativeWebSearchTransport({
     apiStyle,
-    baseUrl: provider.baseUrl ?? provider.modelConfig?.baseUrl ?? apiBindingForStyle(apiStyle).defaultBaseUrl,
+    baseUrl,
     enabled: provider.modelConfig?.webSearch === true,
   });
 }
@@ -438,7 +451,13 @@ export function buildProviderModel(
       }) === "on"
         ? true
         : undefined,
-    compat: { ...compat, ...transcriptCompat(catalog, provider.modelId, binding.api, baseUrl) },
+    // The session-affinity default sits under the row's own compat, so a
+    // catalog entry that already answers the question keeps its answer.
+    compat: {
+      ...(sessionAffinityCompat(provider, binding.api, baseUrl) ?? {}),
+      ...compat,
+      ...transcriptCompat(catalog, provider.modelId, binding.api, baseUrl),
+    },
     ...(Object.keys(modelHeaders).length > 0 ? { headers: modelHeaders } : {}),
   } as Model<Api>;
 }

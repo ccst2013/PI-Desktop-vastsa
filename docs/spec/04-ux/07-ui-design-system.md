@@ -547,7 +547,8 @@ pixel remains clickable. Termination is geometric: a region ends where the
 element's border box ends, so an element that only pads its content clear of
 the band still covers the controls with its rectangle. The open work-panel
 header uses a horizontally scrollable tab strip with a fixed `+` add trigger;
-each tab owns its close action and the header does not add a second `×` beside
+each tab owns its close action, and activating a tab scrolls its tab and close
+action into the visible strip. The header does not add a second `×` beside
 the native Windows close control. The band
 floats over the destination pages, so on Windows/Linux a page frame and any
 right-edge detail sheet start below it instead of placing their own header
@@ -751,12 +752,14 @@ plain status text:
 - Exit: 280ms opacity fade (`startup-splash-out`) once `ready` is true, revealing
   the already-mounted shell underneath
 - Reduced motion: near-zero enter/exit and a static full-width bar
-- macOS: the splash is the same glass as the sidebar (D304 / D348) — the
-  `--ds-sidebar-glass-tint` fill plus top/bottom sheen over the native
-  `sidebar` vibrancy, so the boot surface never flashes an opaque panel
-  ahead of the translucent sidebar. The mounted shell stays hidden under
-  the glass until the exit fade, then cross-fades in. Other platforms keep
-  the opaque `--ds-bg-primary` fill
+- macOS: the splash uses the same sidebar treatment as the app shell (D304 /
+  D348) — the `--ds-sidebar-glass-tint` fill plus top/bottom sheen over the
+  native `sidebar` vibrancy material, so the boot surface never flashes a
+  mismatched panel ahead of the sidebar. Turning off the macOS `Translucent
+  window` switch paints an opaque native surface (ADR 0332) under the same tint
+  and sheen, and the splash keeps following whichever surface the window has. The
+  mounted shell stays hidden under the splash until the exit fade, then
+  cross-fades in. Other platforms keep the opaque `--ds-bg-primary` fill
 
 This is boot-state feedback, not decorative chrome.
 
@@ -969,7 +972,7 @@ The composer renders only controls connected to the active pi session:
   Unknown models do not gain reasoning automatically. Changing provider clamps
   or resets the durable session value before the next turn.
 - The left-of-input Composer Agent/Plan/Goal chip is the sole active-session mode
-  control and cycles Agent → Plan → Goal → Agent. The Composer-right combined
+  control and opens a menu listing Agent, Plan, and Goal. The Composer-right combined
   chip owns model and reasoning changes; the top bar has no duplicate mode or
   model control. The combined Composer picker closes and is disabled while an active
   `pending` Plan or Goal approval exists;

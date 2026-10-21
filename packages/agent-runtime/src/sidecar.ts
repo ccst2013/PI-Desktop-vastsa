@@ -62,6 +62,11 @@ async function getNativePiService() {
   return nativePiServiceFactory();
 }
 
+function nativeProjectPaths(params: { projectPaths?: unknown } | undefined): string[] {
+  const value = params?.projectPaths;
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 const runtimes: RuntimeMap = new Map();
 const hostProxy = new ParentHostProxy();
 const testRuntimeIds = new WeakMap<DesktopAgentRuntime, string>();
@@ -124,6 +129,8 @@ type RuntimeParams = {
   /** Session-bound workspace root supplied by Electron main. */
   projectPath?: string;
   remoteWorkspace?: { hostKey: string; path: string };
+  /** An isolated session's worktree root, supplied by Electron main (ADR 0329). */
+  workspaceRoot?: string;
   customSystemPrompt?: CustomSystemPrompt;
   projectInstructions?: ProjectInstructions;
   projectMemory?: string;
@@ -238,6 +245,7 @@ async function runtimeFor(
     projectMemory: params.projectMemory,
     projectPath: params.projectPath,
     remoteWorkspace: params.remoteWorkspace,
+    workspaceRoot: params.workspaceRoot,
     commandShell: params.commandShell,
   })
     ? existing
@@ -310,6 +318,7 @@ async function runtimeFor(
     subagentModelKeys,
     projectPath: params.projectPath,
     remoteWorkspace: params.remoteWorkspace,
+    workspaceRoot: params.workspaceRoot,
     customSystemPrompt: params.customSystemPrompt,
     projectInstructions: params.projectInstructions,
     projectMemory: params.projectMemory,
@@ -392,11 +401,13 @@ async function handle(method: string, params: any): Promise<unknown> {
       return { ok: true, runtimes: runtimes.size };
     case "native.session.list": {
       const service = await getNativePiService();
-      return { sessions: await service.list() };
+      return { sessions: await service.list({ projectPaths: nativeProjectPaths(params) }) };
     }
     case "native.session.search": {
       const service = await getNativePiService();
-      return service.search(String(params.query ?? ""));
+      return service.search(String(params?.query ?? ""), {
+        projectPaths: nativeProjectPaths(params),
+      });
     }
     case "native.session.get": {
       const service = await getNativePiService();

@@ -33,7 +33,9 @@ pub(crate) const PORTABLE_APPLICATION_FIELDS: &[&str] = &[
     "language",
     "fontFamily",
     "fontScale",
+    "showThinking",
     "thinkingDisplayMode",
+    "keepCommandsExpanded",
     "enterToSend",
     "largePasteThreshold",
     "defaultProviderId",
@@ -97,8 +99,10 @@ pub const DOMAIN_ADAPTERS: &[DomainAdapterSpec] = &[
             "language",
             "fontFamily",
             "fontScale",
+            "showThinking",
             "thinkingDisplayMode",
             "enterToSend",
+            "keepCommandsExpanded",
             "keybindings",
             "display bindings",
             "provider/model bindings",
@@ -624,6 +628,20 @@ mod tests {
     fn adapter_registry_covers_every_portable_domain() {
         assert_eq!(DOMAIN_ADAPTERS.len(), ALL_DOMAINS.len());
         assert!(!PORTABLE_APPLICATION_FIELDS.contains(&"defaultPermissionMode"));
+        // The explicit reasoning-display boolean, its legacy fallback, and the
+        // command-folding preference are portable, and each is advertised by the
+        // application adapter.
+        assert!(PORTABLE_APPLICATION_FIELDS.contains(&"showThinking"));
+        assert!(PORTABLE_APPLICATION_FIELDS.contains(&"thinkingDisplayMode"));
+        assert!(PORTABLE_APPLICATION_FIELDS.contains(&"keepCommandsExpanded"));
+        let application = adapter_for(DOMAIN_APPLICATION).expect("application adapter");
+        assert!(application.exportable_fields.contains(&"showThinking"));
+        assert!(application
+            .exportable_fields
+            .contains(&"thinkingDisplayMode"));
+        assert!(application
+            .exportable_fields
+            .contains(&"keepCommandsExpanded"));
         for domain in ALL_DOMAINS {
             let adapter = adapter_for(domain).expect("portable domain adapter");
             assert_eq!(adapter.schema_version, 1);

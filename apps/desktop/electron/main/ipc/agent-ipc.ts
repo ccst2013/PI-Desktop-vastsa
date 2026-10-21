@@ -25,6 +25,7 @@ export type AgentIpcDependencies = {
   persistenceOutbox: PersistenceOutbox;
   dataDir: string;
   activeTurns: Map<string, string>;
+  recordTurnStart: (sessionId: string, turnId: string) => void;
   /** Whether the named turn can still start or steer host work. */
   isTurnDispatchable: (sessionId: string, turnId: string | null | undefined) => boolean;
   activeTurnUsages: Map<string, MessageUsage>;
@@ -86,6 +87,7 @@ export function registerAgentIpc({
   persistenceOutbox,
   dataDir,
   activeTurns,
+  recordTurnStart,
   isTurnDispatchable,
   activeTurnUsages,
   approvedExecutionIdsBySession,
@@ -322,7 +324,7 @@ export function registerAgentIpc({
       session,
       settings,
     );
-    sidecar.setProjectInstructionRoot(req.sessionId, launch.projectPath);
+    sidecar.setProjectInstructionRoot(req.sessionId, launch.workspaceRoot ?? launch.projectPath);
 
     // Open a durable turn row, then persist the user message under it.
     const turn = await host.call<{ turnId?: string }>("session.beginTurn", {
@@ -336,6 +338,7 @@ export function registerAgentIpc({
       throw new Error("session.beginTurn returned no turn");
     }
     activeTurns.set(req.sessionId, durableTurnId);
+    recordTurnStart(req.sessionId, durableTurnId);
     activeTurnUsages.delete(req.sessionId);
 
     // Slash expansion (D123, ADR 0024): templates expand before persistence
@@ -593,7 +596,7 @@ export function registerAgentIpc({
       detail.session,
       settings,
     );
-    sidecar.setProjectInstructionRoot(req.sessionId, launch.projectPath);
+    sidecar.setProjectInstructionRoot(req.sessionId, launch.workspaceRoot ?? launch.projectPath);
     // A lost reply is not the sidecar's verdict: the sidecar keeps summarizing
     // and persists the checkpoint through host-core, so the durable record
     // decides whether this manual compaction succeeded (issue #795).

@@ -160,6 +160,14 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
     shared Lucide icon scales in proportion without a reload. Window Zoom
     In/Out/Reset stays independent. The UI never asks for a px value
     (D343 / ADR 0180)
+  - **Translucent window** (macOS only): one switch for the native window
+    surface (ADR 0332). On — and absent — keeps the shipped `sidebar` vibrancy
+    material behind a transparent backing; off paints the opaque surface that
+    frees the window from WindowServer's per-frame recomposition. It persists as
+    `AppSettings.macosWindowTranslucency` and is applied when the main window is
+    created, so the row shows a restart hint while the stored value differs from
+    the surface this process launched with instead of pretending to change the
+    live window. Other platforms do not render the row.
   - **Auto language detection** resolves the OS locale through the main process
     (`app.getLocale()`) rather than the renderer's `navigator.language`, and the
     Auto option shows the detected language inline (e.g. "Currently 简体中文")
@@ -174,6 +182,16 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   `AppSettings.keepAwakeWhileRunning` and `AppSettings.preventScreenSleep`,
   take effect immediately, restore on startup, and release their own blocker
   when disabled or during shutdown. Manual sleep and lid close follow the OS.
+- **Sidebar** card: one master switch for project running activity
+  (`AppSettings.sidebarRunningIndicators`) plus independently gated
+  **Count badge** and **Activity rail** switches
+  (`sidebarRunningBadge`, `sidebarRunningRail`). When unset, the master and
+  Count badge resolve on while Activity rail resolves off; explicit saved
+  values remain authoritative. The sub-switches are disabled while the master
+  switch is off and keep their stored value, so re-enabling the master restores
+  the previous choice instead of resetting it. The affordances themselves are
+  described in
+  [01-ui-ia.md §3.2](01-ui-ia.md#32-sidebar-project-groups).
 - **Network** card:
   - **Proxy**: a segmented control — System, Direct, Custom. System is the
     default and lets Chromium follow the OS proxy; Direct disables the proxy;
@@ -266,7 +284,7 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   control column.
 - **Defaults** card: the host-backed default operating mode (Agent / Plan / Goal),
   command shell selection, Link open destination, context usage display
-  (remaining or used), thinking display mode, Enter-to-send control, the
+  (remaining or used), the Show thinking toggle, Enter-to-send control, the
   infinite provider retry switch, and the large text paste threshold. The
   retry switch is off by default and explains that network/transient provider
   failures keep retrying until success; Stop still cancels the turn and the
@@ -289,17 +307,25 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   settings are edited on the Plugins page; the one-time migration of legacy
   prompt-enhancement preferences is specified in
   `04-ux/12-prompt-enhancement.md`.
-- **Thinking display mode** uses a menu select with Detailed (default) and
-  Compact. Both modes use one whole-process disclosure. Detailed starts the
-  process open, keeps reasoning visible, opens the active multi-item activity
-  group, and closes an untouched group when it completes; Compact starts the
-  process and groups closed, keeps tool/search payloads closed, shows only an
-  active thinking indicator, and hides finished reasoning. Singleton activity
-  uses its item disclosure directly in either mode. The global preference
-  persists as `thinkingDisplayMode` in host-owned settings; missing values use
-  Detailed. It affects presentation only, not model reasoning configuration,
-  and explicit disclosure choices are retained for the mounted session pane.
-  Settings search indexes the row and both mode names.
+- **Show thinking** is a toggle that persists as the optional `showThinking`
+  boolean in host-owned settings. Off keeps the live thinking indicator visible
+  and hides completed reasoning rows and excerpts; stored reasoning is retained
+  and reappears when the toggle is turned back on. It affects presentation only,
+  not model reasoning configuration, and it does not control turn-process or
+  activity-group folding: active processes start open and untouched completed
+  processes fold by default regardless of the toggle. The legacy
+  `thinkingDisplayMode` field (`detailed` / `compact`) is retained only for
+  persisted-settings compatibility and is no longer exposed; an absent or
+  unknown value shows reasoning and an explicit `compact` hides it. Settings
+  search indexes the row.
+- **Don't collapse commands** is a toggle that persists as the optional
+  `keepCommandsExpanded` boolean in host-owned settings, defaulting to on when
+  absent. On keeps shell calls on their own rows beside the tool groups they ran
+  among; off folds them back into those groups, the layout used before commands
+  were separated. It affects presentation only — neither value changes how many
+  process disclosures a turn renders (always one), what a tool received, or what
+  is stored — and it is read at render time, so toggling repaints the transcript
+  immediately. Settings search indexes the row.
 - The **Command shell** row in Defaults uses the host-discovered catalog of native
   PowerShell 5.1, PowerShell 7, cmd, Git Bash, and Bash with IDs
   `windows-powershell`, `windows-pwsh`, `cmd`, `git-bash`, and
@@ -687,6 +713,9 @@ system while preserving their different data ownership:
   explanation — and a market whose sources were refused by the public-network
   guard says so instead of calling every source unreachable, because a proxied
   user sees that refusal while the same URL opens in their browser (ADR 0177).
+  A failed catalog query offers Retry; the same action remains available when
+  only some sources failed. It repeats the current search over the configured
+  sources and announces loading while the request runs.
   Back reloads the skill list.
 - Skills also exposes **Scan other tools** in its toolbar. The explicit scan
   opens inline on the Skills page, and imported entries follow the current
@@ -696,6 +725,9 @@ system while preserving their different data ownership:
   opens inline on the MCP page. Imported servers follow the current Global /
   Project filter and selected project; secrets and header values are never
   shown in candidate rows.
+- MCP Market offers Retry after a failed query or partial source failure. It
+  repeats the current search through the existing market request path and
+  announces loading while the request runs.
 - The Subagents create/edit sheet pins a model with a searchable, provider-
   grouped anchored menu — the same option-menu control the service picker uses
   — over the configured, runnable models the Composer offers, plus an
@@ -842,6 +874,9 @@ system while preserving their different data ownership:
   history
 - Activating a project or project session returns to chat; archive and close
   actions keep Project archive open even when the active workspace changes
+- Opening an archived project also clears its renderer-local archive state so
+  the project becomes visible in the home sidebar; merely selecting its row
+  for inspection does not restore it.
 
 ### Info
 - app/host/protocol versions + open logs

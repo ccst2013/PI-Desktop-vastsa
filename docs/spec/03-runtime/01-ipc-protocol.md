@@ -947,6 +947,12 @@ type SessionSummary = {
  supportedThinkingLevels?: ThinkingLevel[];
  updatedAt: string;
  createdAt: string;
+ /** Isolated sessions only (ADR 0329); never carries a filesystem path. */
+ worktree?: {
+  branch: string;
+  status: "creating" | "active" | "conflict" | "merged" | "missing";
+  setupStatus?: "none" | "running" | "ok" | "failed" | null;
+ };
 };
 
 type SessionMessageOrigin = {
@@ -1062,7 +1068,9 @@ through one Electron-only allowlisted channel:
 Minimal interface:
 
 - `session/list`
-- `session/create`
+- `session/create` — optional `isolated: true` with a `projectPath` creates
+  the session in its own git worktree (ADR 0329); a refusal surfaces the host's
+  `WORKTREE_*` code
 - `session/open(sessionId)` — validate and select an existing durable session
   through the reviewed desktop-control path; it does not create or mutate the
   session
@@ -1420,6 +1428,25 @@ type ProjectMemoryEntry = {
  content: string;
 };
 ```
+
+## 9a. Session worktree API (ADR 0329)
+
+Thin forwards to the host `worktree.*` methods
+(06-host-rpc-protocol §4); errors keep the host's `WORKTREE_*` code.
+
+- `worktree/probe({ projectPath })` → whether the project can host isolated
+  sessions, with the refusal code, or whether it has uncommitted changes
+- `worktree/preview({ sessionId })` / `worktree/merge({ sessionId, previewToken })`
+- `worktree/behind({ sessionId })` → commit count, and
+  `worktree/sync({ sessionId })` — "Sync from project"; `worktree/behindAll()`
+  → `{ counts: { [sessionId]: count }, statusesChanged }` for the sidebar marker
+- `worktree/pendingWork({ sessionId })` — unmerged work a delete discards
+- `worktree/setupLog({ sessionId })`
+- `worktree/reveal({ sessionId })` — Electron Main resolves the folder with
+  `worktree.location` and opens it in the OS file manager; the path is never
+  returned to the renderer
+- `worktree/setupCommand/get({ projectPath })` /
+  `worktree/setupCommand/set({ projectPath, command })`
 
 ## 10. Tool Permission API
 
@@ -1824,9 +1851,16 @@ Command sources:
 
 Work panel channels are Electron-main implementations. User-driven workspace
 operations resolve the visible root from `workspace.get` and fail closed
-without one. Agent-driven BrowserPreview routing resolves the originating
-conversation through `session.get`, so a background preview never inherits the
-visible session's workspace.
+without one. Agent-driven BrowserPreview resolves the owning conversation
+through `session.get`, allowing its project-group folders (or its isolated
+worktree) and its own `<data_dir>/scratch/<sessionId>` directory. A temporary
+conversation needs no workspace to preview its generated HTML. A missing
+session fails explicitly; a background preview never inherits the visible
+session's roots. BrowserPreview validates realpath containment before emitting
+the absolute path to the existing resource-tab owner. Chat links to other
+sessions' scratch files and attachments retain the read-only file surface.
+This does not restrict the Browser's explicit absolute-path / `file:` address
+entry or local-page navigation, which follow its existing local-file policy.
 
 ### workspace
 
@@ -1859,6 +1893,11 @@ Renderer IPC kept for the Plan-safe preview facade and URL fallback:
   `location` in the matching
   runtime panel context. Navigation of a background session does not steal the
   visible guest.
+- plugin file action: `browser/event/openFile {path}`. Electron Main emits this
+  only after the plugin's `fs.openInBrowser` request passes its declared
+  `fs.read` scope and HTML-file checks. The renderer opens the absolute path in a
+  new Browser resource tab for the active local session; the Browser plugin
+  must be enabled. This route grants no `browser.cdp` access.
 
 ### fs (read-only)
 
@@ -1886,9 +1925,13 @@ Renderer IPC kept for the Plan-safe preview facade and URL fallback:
   `.mp4` symlink inside its private app-data directory before the OS handoff,
   so the extensionless blob has a media association without copying its bytes.
 - `fs/resolveRef({ref, sessionId?})` → `FsChatRefResolveResult`
+  (for isolated sessions, lookup and file reads use `worktree.location` rather
+  than the parent project checkout)
   (`{ match: FsChatRefMatch | null, reason?: "outside-allowed-roots" }`, the match naming the answering `root`
   (`workspace` / `scratch` / `attachments`), the `relativePath` relative to that
-  root, the absolute `absolutePath`, `matchedBy` (`exact-relative` /
+  root, optional `sessionScratch: true` for the current session's own scratch
+  (not the wider read-only scratch containment store), the absolute
+  `absolutePath`, `matchedBy` (`exact-relative` /
   `exact-absolute` / `path-suffix` / `basename`), and — for a `workspace` match
   — `projectRoot` (`{ path, name, primary }`), which names the project folder
   that answered); `sessionId` selects the
@@ -2012,6 +2055,16 @@ macOS, where there is no close behavior to configure. Setting a behavior does
 not touch the tray icon: D216 (ADR 0078) creates one at startup on every
 platform, and minimize-to-tray needs it whichever close behavior is stored.
 
+Lifecycle close/quit prompts use additive main-window-only Electron IPC. Main sends
+`pi-desktop/window/event/lifecycleDialogRequest` with `{ requestId, kind }` after the
+renderer acknowledges `pi-desktop/window/lifecycleDialog/ready`; the renderer returns
+`{ requestId, choice }` through `pi-desktop/window/lifecycleDialog/respond`. If Main
+falls back, it sends `pi-desktop/window/event/lifecycleDialogDismiss` with the
+request ID so the renderer removes any stale overlay. Main validates the sender and
+pending request ID. A missing/unresponsive renderer falls back to the native dialog
+after a bounded timeout; if that fallback also fails, shutdown proceeds rather than
+remaining blocked. Tray Quit restores a hidden main
+window before showing its in-app confirmation. This does not change host RPC or storage.
 Maximize/unmaximize changes also emit
 `window/event/maximized`. Unknown actions fail. These window-control channels
 remain Electron-only and do not change the host RPC protocol version.

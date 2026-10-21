@@ -137,6 +137,10 @@ pub struct SessionSummary {
     /// deleting the task frees its sessions back into the ordinary lists.
     #[serde(default)]
     pub scheduled_run: bool,
+    /// The session's isolated worktree (ADR 0329); absent for every other
+    /// session. Filled in by the list and single-summary reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<crate::session_worktrees::lifecycle::WorktreeSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -338,28 +342,39 @@ pub struct SearchHit {
 /// The renderer creates a session with its localized `chat.untitledTask` label
 /// and also recognizes `nav.newChat`, so host-core has to recognize the same
 /// values: it owns title eligibility and cannot read the renderer catalog when
-/// it decides whether a title may still be replaced. German, Spanish, and
-/// French fall back to the English label. Keep this in sync with the migration
-/// list in `db/session_title_source_migration.rs` and `LEGACY_DEFAULT_TITLES`
-/// in the renderer.
-const PLACEHOLDER_TITLES: [&str; 13] = [
+/// it decides whether a title may still be replaced. Every entry is stored
+/// lowercased and compared through `to_lowercase`, because both localized
+/// keys the renderer writes — `chat.untitledTask` and `nav.newChat` — have
+/// their own label per locale, and a non-ASCII uppercase letter (a future
+/// "Ñö..." entry) would slip past ASCII-case-insensitive matching (#1755).
+/// Keep this in sync with the migration list in
+/// `db/session_title_source_migration.rs` and `LEGACY_DEFAULT_TITLES` in the
+/// renderer.
+const PLACEHOLDER_TITLES: [&str; 19] = [
     "",
-    "New task",
-    "New chat",
+    "new task",
+    "new chat",
     "新建任务",
     "新对话",
     "新建任務",
     "新對話",
     "새 작업",
     "새 채팅",
-    "Tarefa sem título",
-    "Nova conversa",
-    "Yeni görev",
-    "Yeni sohbet",
+    "tarefa sem título",
+    "nova conversa",
+    "yeni görev",
+    "yeni sohbet",
+    "neue aufgabe",
+    "nouvelle tâche",
+    "nueva tarea",
+    "neuer chat",
+    "nuevo chat",
+    "nouvelle discussion",
 ];
 
 fn is_default_title(title: &str) -> bool {
-    PLACEHOLDER_TITLES.contains(&title.trim())
+    let t = title.trim().to_lowercase();
+    PLACEHOLDER_TITLES.iter().any(|p| *p == t)
 }
 
 // ---- UiMessage ⇄ transcript record mapping -----------------------------------
@@ -1305,7 +1320,20 @@ pub(crate) fn summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Sess
         // Read by name: search and listing build their own column lists, so the
         // alias keeps this mapper independent of any one query's column order.
         scheduled_run: row.get("scheduled_run")?,
+        worktree: None,
     })
+}
+
+/// Attach isolated-worktree badges. Sessions without a worktree are untouched.
+fn attach_worktrees(db: &Database, summaries: &mut [SessionSummary]) -> Result<()> {
+    let mut worktrees = crate::session_worktrees::lifecycle::summaries(db)?;
+    if worktrees.is_empty() {
+        return Ok(());
+    }
+    for summary in summaries {
+        summary.worktree = worktrees.remove(&summary.id);
+    }
+    Ok(())
 }
 
 // ---- sessions ---------------------------------------------------------------
@@ -1318,6 +1346,7 @@ pub fn list_sessions(db: &Database) -> Result<Vec<SessionSummary>> {
     for row in rows {
         out.push(row?);
     }
+    attach_worktrees(db, &mut out)?;
     Ok(out)
 }
 
@@ -1446,6 +1475,8 @@ pub fn create_session_with_options(
         created_at: ms_to_ts(now),
         // The run row that owns this transcript is written after creation.
         scheduled_run: false,
+        // A new or forked session starts without a worktree (ADR 0329).
+        worktree: None,
     })
 }
 
@@ -1492,11 +1523,15 @@ pub fn get_session(db: &Database, id: &str) -> Result<Option<SessionDetail>> {
 /// `SUMMARY_SELECT`, so this is one indexed row.
 pub fn session_summary(db: &Database, id: &str) -> Result<Option<SessionSummary>> {
     let sql = format!("{SUMMARY_SELECT} AND s.id = ?1");
-    Ok(db
+    let mut summary = db
         .conn()
         .prepare_cached(&sql)?
         .query_row(params![id], summary_from_row)
-        .optional()?)
+        .optional()?;
+    if let Some(summary) = summary.as_mut() {
+        attach_worktrees(db, std::slice::from_mut(summary))?;
+    }
+    Ok(summary)
 }
 
 /// Load a session detail with an optional renderer-facing message window.
@@ -1804,6 +1839,8 @@ pub fn fork_session_through(
         created_at,
         // A fork is the user's own conversation, not the automation's transcript.
         scheduled_run: false,
+        // A new or forked session starts without a worktree (ADR 0329).
+        worktree: None,
     };
     let messages = records.into_iter().map(record_to_ui).collect();
     Ok(ForkSessionResult::Created(Box::new(SessionDetail {
@@ -4242,6 +4279,19 @@ pub fn get_token_usage_history(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_title_matches_the_german_french_and_spanish_placeholders() {
+        // The renderer lowercases `chat.untitledTask` before persisting (#1755);
+        // the nav.newChat labels resolve through the same to_lowercase path.
+        assert!(is_default_title("neue aufgabe"));
+        assert!(is_default_title("Nouvelle tâche"));
+        assert!(is_default_title("nueva tarea"));
+        assert!(is_default_title("Neuer Chat"));
+        assert!(is_default_title("nuevo chat"));
+        assert!(is_default_title("Nouvelle discussion"));
+        assert!(!is_default_title("real session name"));
+    }
     use crate::workspace::simple_canonicalize;
 
     fn test_db() -> Database {
@@ -4879,6 +4929,12 @@ mod tests {
             "Tarefa sem título",
             "Yeni görev",
             "New chat",
+            "new task",
+            "new chat",
+            "tarefa sem título",
+            "nova conversa",
+            "yeni görev",
+            "yeni sohbet",
         ] {
             let session =
                 create_session(&db, Some(placeholder.into()), None, None, None, None).unwrap();
@@ -5005,6 +5061,7 @@ mod tests {
             permission_mode: "inherit".into(),
             // Ownership is derived from `task_runs`, so an import is never one.
             scheduled_run: false,
+            worktree: None,
             created_at: "2025-01-01T00:00:00Z".into(),
             updated_at: "2025-01-02T00:00:00Z".into(),
         };
@@ -5057,6 +5114,7 @@ mod tests {
             permission_mode: "inherit".into(),
             // Ownership is derived from `task_runs`, so an import is never one.
             scheduled_run: false,
+            worktree: None,
             created_at: "2025-01-01T00:00:00Z".into(),
             updated_at: "2025-01-01T00:00:00Z".into(),
         };
@@ -5998,6 +6056,7 @@ mod tests {
             permission_mode: "inherit".into(),
             // Ownership is derived from `task_runs`, so an import is never one.
             scheduled_run: false,
+            worktree: None,
             created_at: "2025-01-01T00:00:00Z".into(),
             updated_at: "2025-01-01T00:00:00Z".into(),
         };

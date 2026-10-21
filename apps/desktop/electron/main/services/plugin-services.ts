@@ -31,7 +31,7 @@ import {
   type RuntimeProviderConfig,
 } from "@pi-desktop/agent-runtime";
 import { createFsConsentService } from "../plugin-fs-consent";
-import { pluginWorkspaceInfo } from "../workspace-roots";
+import { pluginWorkspaceInfo, projectFolderPaths } from "../workspace-roots";
 import { createDesktopConsentService } from "../plugin-desktop-consent";
 import { PluginRuntime } from "../plugin-runtime";
 import { createSpeechService } from "./speech-service";
@@ -48,12 +48,15 @@ import {
 import { McpOAuthManager } from "../mcp-oauth";
 import { PluginPanelHost } from "../plugin-panel-host";
 import { PluginViewHost } from "../plugin-view-host";
+import { SESSION_SCOPED_EVENTS, sessionEventScopeFilter } from "../plugin-session-scope";
 import { BrowserPane } from "../browser-view";
 import { BrowserHost, BROWSER_PLUGIN_ID } from "../browser-host";
 import { OAUTH_AUTH_KIND, type VendorOAuth } from "../oauth";
 import type { ClipboardHistory } from "../clipboard-history";
 import type { TurnEndedPayload } from "../runtime/session-coordination";
 import type { HostProcess } from "../host-process";
+import { createPluginSessionContext } from "./plugin-session-context";
+import { createComposerSuggestionRelay } from "./composer-suggestion";
 import type { Logger } from "../logger";
 import type { PluginAppearance } from "../../shared/plugin-panel-chrome";
 
@@ -77,8 +80,26 @@ export type PluginServicesDependencies = {
   getWorkspacePath: () => string | null;
   resolveAgentRuntimeLaunch: (...args: any[]) => Promise<any>;
   vendorOAuth: VendorOAuth;
+  /** The live turn of one session, read from the host's own turn map. */
+  getActiveTurn: (sessionId: string) => string | null;
+  /**
+   * Whether a plugin's contributions apply to the project the window shows.
+   * Scope records live in Main, so this is the one lookup that decides.
+   */
+  isPluginActiveInProject: (pluginId: string) => boolean;
+  /**
+   * Scope check against an explicit project path, so the session-event
+   * fan-out can hold the same line `session.getActive` does for sessions
+   * that are not the window's own selection (#1754).
+   */
+  pluginActiveInProject: (pluginId: string, projectPath: string | null | undefined) => boolean;
 };
 
+/**
+ * Session events whose payload describes the user's current selection. A
+ * detached `ui.panel` window is application-scoped — it does not belong to a
+ * session — so it never receives them; plugin processes and docked views do.
+ */
 export function createPluginServices({
   dataDir,
   logger,
@@ -97,6 +118,9 @@ export function createPluginServices({
   getWorkspacePath,
   resolveAgentRuntimeLaunch,
   vendorOAuth,
+  getActiveTurn,
+  isPluginActiveInProject,
+  pluginActiveInProject,
 }: PluginServicesDependencies) {
   // A plugin request can lose its race with host shutdown or restart.
   const isHostUnavailable = (error: unknown): boolean =>
@@ -546,40 +570,85 @@ export function createPluginServices({
     pluginViews.broadcast("browser:state", state);
   };
   /**
-   * Tell the plugin surfaces that a host turn reached a terminal state. The
-   * three surfaces are independent: a failure to reach one of them must not
-   * suppress the other two, and inside each one an unreachable recipient is
-   * skipped by the host that owns the fan-out.
+   * One fan-out for every session-lifecycle event, so a rule added here cannot
+   * apply to `session:turnEnded` and be forgotten for `session:activated`.
    *
-   * Delivery is best-effort by contract — no acknowledgement, no replay, and no
-   * guarantee for a plugin that is loading, crashed or unloaded right now.
+   * The selected session and its project path are reported to the plugin
+   * processes and to the docked views that follow the user's selection; a
+   * detached `ui.panel` window is application-scoped and never receives them.
+   * Each surface owns its failure: one unreachable plugin process, panel or view
+   * must not suppress the other two.
    */
-  const announceTurnEnded = (payload: TurnEndedPayload): void => {
+  const broadcastSessionEvent = (event: string, payload: unknown): void => {
+    const sessionId =
+      (payload as { sessionId?: string } | null | undefined)?.sessionId ?? undefined;
+    // Selection events carry another project's session identity, so the
+    // fan-out holds the scope line the pull side (session.getActive,
+    // ui.revealView) already enforces: a project-scoped plugin does not
+    // receive a session its scope excludes (#1754). Sessions without a
+    // project fall back to the workspace-relative check.
+    const scopeFilter = sessionEventScopeFilter(
+      event,
+      sessionId,
+      sessionProjects,
+      pluginActiveInProject,
+    );
     try {
-      plugins.broadcastEvent("session:turnEnded", [payload]);
+      plugins.broadcastEvent(event, [payload], scopeFilter);
     } catch (error) {
-      logger.app("plugin", "warn", "turnEnded plugin broadcast failed", {
-        sessionId: payload.sessionId,
+      logger.app("plugin", "warn", `${event} plugin broadcast failed`, {
+        sessionId,
         data: String(error),
       });
     }
-    try {
-      pluginPanels.broadcast("session:turnEnded", payload);
-    } catch (error) {
-      logger.app("plugin", "warn", "turnEnded panel broadcast failed", {
-        sessionId: payload.sessionId,
-        data: String(error),
-      });
+    if (!SESSION_SCOPED_EVENTS.has(event)) {
+      try {
+        pluginPanels.broadcast(event, payload);
+      } catch (error) {
+        logger.app("plugin", "warn", `${event} panel broadcast failed`, {
+          sessionId,
+          data: String(error),
+        });
+      }
     }
     try {
-      pluginViews.broadcast("session:turnEnded", payload);
+      pluginViews.broadcast(event, payload, scopeFilter);
     } catch (error) {
-      logger.app("plugin", "warn", "turnEnded view broadcast failed", {
-        sessionId: payload.sessionId,
+      logger.app("plugin", "warn", `${event} view broadcast failed`, {
+        sessionId,
         data: String(error),
       });
     }
   };
+  const announceTurnEnded = (payload: TurnEndedPayload): void => {
+    broadcastSessionEvent("session:turnEnded", payload);
+    // The snapshot also carries the running turn, so a surface that subscribes
+    // to `session:activated` learns the selected session went idle from the
+    // same event stream it learns a switch from.
+    pluginSession.noteTurnEnded(payload.sessionId, payload.turnId);
+  };
+  /**
+   * The selected session and its running turn, as the plugin surfaces see it.
+   *
+   * Created after the two window hosts above because its fan-out reaches them,
+   * and after nothing else: `announceTurnEnded` above notifies it, and that only
+   * ever runs once this factory has returned.
+   */
+  const pluginSession = createPluginSessionContext({
+    getActiveTurn,
+    announce: broadcastSessionEvent,
+  });
+  /**
+   * `pi.composer.suggest` (ADR 0333): the main process refuses a suggestion
+   * that names another session or an overtaken turn, and the shell answers
+   * whether the composer can take it. The composer owns its own state, so this
+   * only ever relays — nothing here writes the draft.
+   */
+  const composerSuggestion = createComposerSuggestionRelay({
+    sendToRenderer,
+    getActiveSession: () => pluginSession.snapshot(),
+    log: (message, data) => logger.app("plugin", "warn", message, { data }),
+  });
   const pluginViews = new PluginViewHost(({ pluginId, url }) => {
     logger.app("plugin", "warn", "plugin.api", {
       pluginId,
@@ -601,19 +670,24 @@ export function createPluginServices({
       })().catch((error) => logger.app("plugin", "warn", "browser.link.open.failed", { data: String(error) }));
     },
     isPluginLoaded: (pluginId) => Boolean(plugins.getLoaded(pluginId)),
-    getFileRoot: async (sessionId) => {
-      if (sessionId) {
-        try {
-          const res = (await getHost()?.call("session.get", { id: sessionId })) as
-            | { session: { projectPath?: string } | null }
-            | undefined;
-          const path = res?.session?.projectPath?.trim();
-          if (path) return path;
-        } catch {
-          // Fall through to the visible workspace.
-        }
+    getFileRoots: async (sessionId) => {
+      if (!sessionId) return projectFolderPaths(getWorkspacePath());
+      const host = getHost();
+      if (!host) throw new Error("Browser preview host is unavailable.");
+      const res = await host.call<{ session: { projectPath?: string; worktree?: unknown } | null }>(
+        "session.get", { id: sessionId },
+      );
+      if (!res?.session) throw new Error("Browser preview session is unavailable.");
+      if (res.session.worktree) {
+        const location = await host.call<{ path?: string }>("worktree.location", { sessionId });
+        const path = location.path?.trim();
+        if (!path) throw new Error("Browser preview worktree is unavailable.");
+        return [path, join(dataDir, "scratch", sessionId)];
       }
-      return getWorkspacePath();
+      return [
+        ...projectFolderPaths(res.session.projectPath?.trim() || null),
+        join(dataDir, "scratch", sessionId),
+      ];
     },
     getScratchDir: (sessionId) => {
       if (!sessionId) return null;
@@ -633,6 +707,13 @@ export function createPluginServices({
      * (ADR 0263) instead of the bare primary path.
      */
     getWorkspaceInfo: () => pluginWorkspaceInfo(getWorkspacePath()),
+    openInBrowser: async (fullPath) => {
+      const preview = await browserHost.previewFile();
+      if (!preview.ok) {
+        throw Object.assign(new Error(preview.content), { code: "UNAVAILABLE" });
+      }
+      sendToRenderer(IPC.event.browserOpenFile, { path: fullPath });
+    },
     /**
      * The project each live session belongs to, so an fs call made by one
      * session's tool follows that session instead of whichever project the
@@ -642,6 +723,34 @@ export function createPluginServices({
     getWorkspacePathForSession: (sessionId) => sessionProjects.get(sessionId) ?? null,
     agentExtensionsChanged: () =>
       sendToRenderer(IPC.event.pluginChanged, { reason: "agentExtensions" }),
+    /** `pi.session.getActive`: the selected session as the shell shows it. */
+    getActiveSession: () => pluginSession.snapshot(),
+    /**
+     * The same project-scope check the view IPCs apply, so following a session
+     * and revealing a view stay inside the project the plugin was activated in.
+     */
+    isPluginActiveInProject: (pluginId) => isPluginActiveInProject(pluginId),
+    /**
+     * `pi.ui.revealView`: the runtime validated the view and the session; the
+     * shell owns work-panel tabs, so it is the surface that opens the tab.
+     */
+    revealView: async ({ pluginId, viewId, sessionId, location }) => {
+      sendToRenderer(IPC.event.pluginViewReveal, {
+        pluginId,
+        viewId,
+        sessionId,
+        ...(location ? { location } : {}),
+      });
+    },
+    /**
+     * `pi.composer.suggest`: the runtime already checked the permission and
+     * shaped the text, and this only relays the offer to the shell that owns the
+     * composer.
+     */
+    suggestComposer: (offer) => composerSuggestion.offer(offer),
+    /** `pi.composer.clearSuggestion`: drop this plugin's own line. */
+    clearComposerSuggestion: (pluginId, sessionId) =>
+      composerSuggestion.clearSuggestion(pluginId, sessionId),
     browser: {
       reveal: (sessionId) => browserHost.reveal(sessionId),
       navigate: (input, sessionId, tabId) => browserHost.navigate(input, sessionId, tabId),
@@ -660,6 +769,8 @@ export function createPluginServices({
     },
     onPluginUnload: (pluginId) => {
       if (pluginId === BROWSER_PLUGIN_ID) browserHost.disposeGuest();
+      // A stopped plugin loses its line in the composer with it.
+      composerSuggestion.clearPlugin(pluginId);
     },
   });
   const speech = createSpeechService({
@@ -679,6 +790,8 @@ export function createPluginServices({
     pluginPanels,
     pluginViews,
     browserHost,
+    pluginSession,
+    composerSuggestion,
     speech,
   };
 }
