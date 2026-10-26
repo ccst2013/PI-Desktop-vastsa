@@ -223,7 +223,20 @@ MVP provides:
 2. an “Open logs folder” command; and
 3. optional copy of error details (code and `traceId`).
 
-There is no remote telemetry pipeline or cloud crash analytics in the MVP.
+There is no remote telemetry pipeline or cloud crash analytics in the MVP. The
+product ships no tracing endpoint and no ingest credentials, and a stock
+install exports no conversation data anywhere.
+
+This boundary is about the product, not about what a user may add to it. A
+trusted extension the user installs, enables, and configures can export to a
+sink of their own choosing: `agent.extension` runs code inside the agent
+process with the agent's own access. The Langfuse example plugin
+(`examples/plugins/pi-langfuse`, ADR 0334 and ADR 0335) is exactly that —
+disabled by default, carrying no endpoint or keys, and inert until the user
+supplies their own, whether by that plugin's settings sheet, its
+`langfuse.json`, or `LANGFUSE_*`. Such an export is the user's decision and
+`langfuse.json`, or `LANGFUSE_*`. Such an export is the user's decision and the
+extension's documented scope, not a product telemetry channel; it must never
 
 ## 9. Retention
 

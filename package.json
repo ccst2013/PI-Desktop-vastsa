@@ -77,6 +77,8 @@
     "check:release-docs": "node scripts/check-release-docs.mjs",
     "check:agent-policy": "node scripts/check-agent-policy-sync.mjs",
     "check:pr-base": "node scripts/check-pr-base-main.mjs",
+    "build:langfuse-extension": "node scripts/bundle-langfuse-extension.mjs",
+    "check:langfuse-extension": "node scripts/bundle-langfuse-extension.mjs --check",
     "docs:dev": "pnpm --filter @pi-desktop/docs dev",
     "docs:build": "pnpm --filter @pi-desktop/docs build",
     "docs:preview": "pnpm --filter @pi-desktop/docs preview",
@@ -105,6 +107,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
+    "@langfuse/pi-observability-plugin": "0.1.2",
     "@pi-desktop/plugin-devkit": "workspace:*"
   }
 }

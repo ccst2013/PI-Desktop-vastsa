@@ -10224,6 +10224,9 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
 | G — Plugins (Session Orchestrator) | E2E-PLUGIN-session-orchestrator-real-workers |
 | Security (Session Orchestrator) | E2E-PLUGIN-session-orchestrator-real-workers |
 | Quality (Session Orchestrator) | E2E-PLUGIN-session-orchestrator-real-workers |
+| G — Plugins (Langfuse example) | E2E-PLUGIN-langfuse-opt-in-export, E2E-PLUGIN-langfuse-settings-sheet |
+| Security (Langfuse example) | E2E-PLUGIN-langfuse-opt-in-export, E2E-PLUGIN-langfuse-settings-sheet |
+| Quality (Langfuse example) | E2E-PLUGIN-langfuse-opt-in-export, E2E-PLUGIN-langfuse-settings-sheet |
 | C — Conversation & stream (Session list responsiveness) | E2E-SESSION-list-refresh-keeps-desktop-responsive |
 | Quality (Session list responsiveness) | E2E-SESSION-list-refresh-keeps-desktop-responsive |
 | Security (imported extension dependencies) | E2E-PLUGIN-import-extension-installs-dependencies, E2E-PLUGIN-import-extension-reports-missing-dependency |
@@ -15660,6 +15663,84 @@ plugin-form fixtures in an isolated temporary directory at runtime.
 - **Status**: Automated by `pnpm test:e2e:plugin-import-deps` for the deterministic
   registry-source rejection boundary; renderer warning-toast and `load_error`
   behavior remains a separate validation surface.
+
+#### E2E-PLUGIN-langfuse-opt-in-export: The Langfuse example plugin exports only after the user configures a sink
+
+- **Preconditions**: The committed `examples/plugins/pi-langfuse/agent/langfuse.mjs`
+  artifact with no `node_modules` beside it; an isolated `PI_CODING_AGENT_DIR`
+  and an isolated `PI_DESKTOP_DATA_DIR`; a local stub OTLP sink. No real
+  Langfuse instance is contacted.
+- **Steps**: 1) Load the artifact through the real trusted-extension runner and
+  jiti loader with no credentials. 2) Drive a full turn (`session_start`,
+  `before_agent_start`, `message_end`, `agent_settled`). 3) Write the user's own
+  `langfuse.json` pointing at the stub sink and repeat the turn. 4) Set
+  `LANGFUSE_TRACING_ENABLED=false` with keys present and repeat. 5) Set
+  `LANGFUSE_*` credentials that disagree with the file and repeat.
+- **Expected**: The artifact loads with zero diagnostics in every case, proving
+  `getAgentDir` resolves and no bare specifier is left unresolved. Unconfigured,
+  it subscribes only to `session_start`, reports `langfuse: off (no keys)`, and
+  the sink receives nothing. Configured, one settled turn produces at least one
+  `POST /api/public/otel/v1/traces` whose Basic credential is exactly the user's
+  own key pair, the trace is named `Pi Turn` and typed as a span, and the status
+  line reaches `langfuse ✓ (trace sent)`. The kill switch returns it to zero
+  export. Environment credentials win over the file.
+- **Specs linked**: `07-plugins/16-trusted-extensions.md` §4.2;
+  `03-runtime/09-logging-and-observability.md` §8; ADR 0334
+- **Acceptance**: Security, Quality
+- **Milestone**: Post-MVP (R7 v1)
+- **Status**: Automated by
+  `packages/agent-runtime/src/extensions/langfuse-extension.test.ts` (user path)
+  and `apps/desktop/test/example-langfuse-plugin.test.mjs` (opt-in shape, absence
+  of shipped credentials, import allowlist, artifact reproduction). The
+  reproduction check runs when `PI_LANGFUSE_BUNDLE_FROM` names a directory with
+  the pinned package installed and is skipped otherwise, so the suite stays
+  offline. The Plugin Center enable/grant journey remains a separate validation
+  surface.
+
+#### E2E-PLUGIN-langfuse-settings-sheet: A saved plugin setting reaches the trace, at the documented moment
+
+- **Preconditions**: The same artifact, runner, loader, isolated
+  `PI_CODING_AGENT_DIR`, and local stub sink as
+  E2E-PLUGIN-langfuse-opt-in-export. The settings file is written at the path
+  the host's `pluginDataDir()` formula produces
+  (`<data>/plugins/data/<plugin-id>/settings.json`), because the sheet is only
+  the editor of that file.
+- **Steps**: 1) Save a full row set with panel credentials and load the
+  extension; drive a turn. 2) Rewrite the file with a second key pair and build
+  a new Runner for the same spec id — the reload a disable/enable performs — and
+  drive another turn. 3) Save empty text fields over a populated
+  `langfuse.json`. 4) Export a `LANGFUSE_PUBLIC_KEY`, save a panel key, then
+  clear the panel row. 5) Keep `LANGFUSE_TRACING_ENABLED=false` in the
+  environment with the panel row on. 6) Save a small `PI_LANGFUSE_MAX_CHARS`,
+  drive a turn with a 400-character prompt, then change the row and reload.
+- **Expected**: The saved credentials carry the export (the decoded Basic header
+  is the panel pair), and the reload picks up the changed file, so the last
+  export uses the second pair. An empty field sets nothing: the trace falls back
+  to `langfuse.json`. A field the panel filled and the user then cleared gives
+  back the value the process inherited, so no stale sink survives a reload. An
+  inherited kill switch is never raised: the extension still registers only
+  `session_start` and the sink stays empty. A saved max length truncates the
+  prompt on the module's first evaluation (`truncated`, `orig_len`, `kept_len`
+  in the exported metadata) and a reload does not change it — the row applies on
+  app restart, which is what ADR 0335 and the plugin README promise. The sheet's
+  rows and the variables they set are the same set, and neither the manifest,
+  the bridge, nor the artifact carries an endpoint, a credential, or a log
+  statement that could echo one.
+- **Specs linked**: `07-plugins/16-trusted-extensions.md` §4.2;
+  `07-plugins/11-plugin-storage-isolation.md` §4;
+  `03-runtime/09-logging-and-observability.md` §8; ADR 0334, ADR 0335
+- **Acceptance**: Security, Quality
+- **Milestone**: Post-MVP (R7 v1)
+- **Status**: Automated by
+  `packages/agent-runtime/src/extensions/langfuse-extension.test.ts` (panel
+  values, reload, precedence),
+  `packages/agent-runtime/src/extensions/langfuse-settings-layers.test.ts` (the
+  import-time layer; a file of its own because it must observe the module's
+  first evaluation), and `apps/desktop/test/example-langfuse-plugin.test.mjs`
+  (row/variable agreement, the path formula against `pluginDataDir()`, the
+  ordering guard in the artifact, no secret rows, no logged values). The sheet
+  rendering and the Plugin Center reload journey remain a separate validation
+  surface.
 
 #### E2E-PLUGIN-import-extension-recovers-missing-npm: Choose a trusted npm installation and resume the same import
 

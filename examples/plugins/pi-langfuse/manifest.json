@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "pi.langfuse",
+  "name": "Langfuse Tracing",
+  "version": "0.1.0",
+  "description": "Opt-in tracing of agent turns, model calls, and tool runs to a Langfuse instance you configure. Ships no endpoint and no credentials; nothing is exported until you add your own keys.",
+  "i18n": {
+    "en": {
+      "name": "Langfuse Tracing",
+      "description": "Opt-in tracing of agent turns, model calls, and tool runs to a Langfuse instance you configure. Ships no endpoint and no credentials; nothing is exported until you add your own keys.",
+      "safetyNotes": "Runs code inside the agent process and sends conversation content to the endpoint you configure. Prompts, replies, tool arguments and results, and images are exported. Read the plugin README before enabling."
+    },
+    "zh-CN": {
+      "name": "Langfuse 追踪",
+      "description": "按需开启：把 agent 轮次、模型调用与工具执行上报到你自己配置的 Langfuse 实例。不内置任何地址与密钥，未填写自己的 key 之前不会上报任何数据。",
+      "safetyNotes": "在 agent 进程内运行代码，并把对话内容发往你配置的地址。提示词、回复、工具入参与结果、图片都会被导出。启用前请先阅读插件 README。"
+    }
+  },
+  "author": "PI-Desktop",
+  "homepage": "https://github.com/langfuse/pi-observability-plugin",
+  "main": "main.js",
+  "permissions": ["agent.extension"],
+  "contributes": {
+    "agentExtensions": ["agent/langfuse.mjs"],
+    "settings": [
+      {
+        "key": "enabled",
+        "type": "boolean",
+        "title": "Trace to Langfuse",
+        "description": "Export agent turns, model calls and tool runs. Turning this off stops all export. An inherited LANGFUSE_TRACING_ENABLED=false is never raised back to on.",
+        "default": true
+      },
+      {
+        "key": "baseUrl",
+        "type": "string",
+        "title": "Langfuse base URL",
+        "description": "Your instance, e.g. http://localhost:3000. Leave empty to fall back to the LANGFUSE_* environment or <agentDir>/langfuse.json.",
+        "default": ""
+      },
+      {
+        "key": "publicKey",
+        "type": "string",
+        "title": "Public key",
+        "description": "Ingest public key (pk-lf-...). Empty keeps the value from the environment or langfuse.json.",
+        "default": ""
+      },
+      {
+        "key": "secretKey",
+        "type": "string",
+        "title": "Secret key",
+        "description": "Ingest secret key (sk-lf-...). Stored and displayed in plain text: this release has no secure storage for plugin settings, so use an ingest-only key for a project you are willing to read back.",
+        "default": ""
+      },
+      {
+        "key": "userId",
+        "type": "string",
+        "title": "User id",
+        "description": "Optional attribution stamped on every trace. Empty means traces stay anonymous.",
+        "default": ""
+      },
+      {
+        "key": "environment",
+        "type": "string",
+        "title": "Trace environment",
+        "description": "Optional Langfuse environment, e.g. development or production.",
+        "default": ""
+      },
+      {
+        "key": "release",
+        "type": "string",
+        "title": "Release",
+        "description": "Optional release or build tag reported with each trace.",
+        "default": ""
+      },
+      {
+        "key": "maxChars",
+        "type": "number",
+        "title": "Max characters per field",
+        "description": "Prompts, replies and tool payloads longer than this are truncated. Applies on app restart, not on plugin reload.",
+        "default": 20000
+      },
+      {
+        "key": "uploadImages",
+        "type": "boolean",
+        "title": "Upload conversation images",
+        "description": "Export images in the turn as Langfuse media. Applies on app restart, not on plugin reload.",
+        "default": true
+      }
+    ]
+  },
+  "engines": {
+    "piDesktop": ">=0.1.0"
+  },
+  "enabledByDefault": false
+}

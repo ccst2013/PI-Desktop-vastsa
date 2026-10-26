@@ -240,7 +240,8 @@ never in Electron main, the renderer, or a plugin host process.
   define.
 - Import aliases: `pi-ai`, `pi-agent-core`, and `typebox` resolve to the
   sidecar's copies; `@earendil-works/pi-coding-agent` resolves to a runtime
-  shim that exports `defineTool` and the tool-result type guards. `@earendil-works/pi-tui`
+  shim that exports `defineTool`, the tool-result type guards, and
+  `getAgentDir`. `@earendil-works/pi-tui`
   resolves to a stub module that exports every symbol as an inert
   value so a top-level import never fails. Using a stubbed symbol raises a
   diagnostic at call time.
@@ -251,6 +252,22 @@ never in Electron main, the renderer, or a plugin host process.
   `TRUSTED_EXTENSION_KERNEL_VERSION` remains the legacy marker exposed as
   `VERSION` by this shim. It describes the compatibility subset modeled on the
   0.87.1 API and deliberately does not mirror the installed 1.0.0 package.
+- `getAgentDir()` resolves `PI_CODING_AGENT_DIR`, else `~/.pi/agent`, matching
+  pi, and reads the variable at call time. It is what lets an extension that
+  persists settings beside pi's find its own config file; the Langfuse example
+  plugin imports it as its only runtime value from the kernel and calls it
+  during startup, so a missing export is a load failure rather than a degraded
+  feature (ADR 0334).
+- An extension reads configuration the way any code in the sidecar does: from
+  the environment the process carries, and from files under the directories it
+  is pointed at. Two of those are host-owned and documented: the agent
+  directory from `getAgentDir()` above, and the installation's data directory,
+  which Electron main publishes as `PI_DESKTOP_DATA_DIR` at boot and whose
+  layout below `<data>/plugins/data/<plugin-id>/` is fixed by
+  `07-plugins/11-plugin-storage-isolation.md` §4. A plugin that contributes
+  settings (`contributes.settings`) may therefore take its configuration from
+  the values the user saved in its sheet — that directory is the plugin's own
+  private data, not another plugin's and not the host database (ADR 0335).
 
 ### 4.3 Runner per session
 

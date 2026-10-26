@@ -13,6 +13,8 @@ import * as typeboxCompile from "typebox/compile";
 import * as typeboxValue from "typebox/value";
 import * as piAgentCore from "@earendil-works/pi-agent-core";
 import * as piAi from "@earendil-works/pi-ai";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { TRUSTED_EXTENSION_KERNEL_VERSION } from "@pi-desktop/shared";
 
 export type ExtensionFactory = (api: unknown) => unknown;
@@ -80,6 +82,11 @@ export function createCodingAgentShim(onMissingApi?: MissingCodingAgentApiReport
     isPowerShellToolResult: () => false,
     isToolCallEventType: (type: unknown) =>
       type === "tool_call" || type === "tool_result",
+    /** pi's config directory, the same one the sidecar already reads
+     * instructions and prompt templates from (`~/.pi/agent`). Extensions that
+     * persist their own settings beside pi's expect this to resolve. */
+    getAgentDir: (): string =>
+      process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent"),
     VERSION: TRUSTED_EXTENSION_KERNEL_VERSION,
   };
   const reportMissing = (target: typeof supported, prop: PropertyKey) => {

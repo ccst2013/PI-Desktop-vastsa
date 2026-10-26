@@ -85,3 +85,25 @@ Prefer the official warehouse template:
 
 [fetch-redirect](fetch-redirect/README.md) is a local-only fixture plugin for
 host-enforced follow/error/manual policies and capability detection.
+
+## Langfuse tracing
+
+[pi-langfuse](pi-langfuse/README.md) is an **opt-in** `agent.extension` example:
+it traces agent turns, model calls, and tool runs to a Langfuse instance you
+configure. It ships no endpoint and no credentials, is disabled by default, and
+is not bundled into the app — an unconfigured install exports nothing.
+
+It is also the reference for a self-contained agent extension: the committed
+`agent/langfuse.mjs` is generated from a pinned upstream package by
+`scripts/bundle-langfuse-extension.mjs`, because a distributed plugin cannot
+carry a `node_modules` tree. Read its README before enabling — conversation
+content and images leave the machine, and redaction covers Langfuse keys only.
+Decision record: `docs/adr/0334-langfuse-ships-as-an-opt-in-example-plugin.md`.
+
+Its nine configuration rows are declared in the manifest, so PI-Desktop renders
+them on the plugin's own Settings sheet and stores them in the plugin's data
+directory; the extension reads them through the environment variables upstream
+already defines. A saved value applies when the plugin is reloaded, and the two
+rows the upstream module reads once at import (max characters, image upload)
+need an app restart — the plugin README states which is which. Decision record:
+`docs/adr/0335-langfuse-settings-editable-in-the-plugin-sheet.md`.

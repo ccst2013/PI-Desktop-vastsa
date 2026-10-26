@@ -5822,6 +5822,9 @@ eleven-tool-round desktop paths are verified by
 | G——插件（Session Orchestrator） | E2E-PLUGIN-session-orchestrator-real-workers |
 | 安全性（Session Orchestrator） | E2E-PLUGIN-session-orchestrator-real-workers |
 | 品质（Session Orchestrator） | E2E-PLUGIN-session-orchestrator-real-workers |
+| G——插件（Langfuse 示例） | E2E-PLUGIN-langfuse-opt-in-export, E2E-PLUGIN-langfuse-settings-sheet |
+| 安全性（Langfuse 示例） | E2E-PLUGIN-langfuse-opt-in-export, E2E-PLUGIN-langfuse-settings-sheet |
+| 品质（Langfuse 示例） | E2E-PLUGIN-langfuse-opt-in-export, E2E-PLUGIN-langfuse-settings-sheet |
 | C — 对话与流式（会话列表响应性） | E2E-SESSION-list-refresh-keeps-desktop-responsive |
 | 品质（会话列表响应性） | E2E-SESSION-list-refresh-keeps-desktop-responsive |
 | 品质（Windows 更新缓存） | E2E-260 |
