@@ -37,7 +37,7 @@ import { ModelConfigPage } from "../../components/settings/ModelConfigPage";
 import { KeyboardShortcutsSection } from "../../components/settings/KeyboardShortcutsSection";
 import { FontFamilyRow } from "../../components/settings/FontFamilyRow";
 import { ShowThinkingRow } from "../../components/settings/ShowThinkingRow";
-import { KeepCommandsExpandedRow } from "../../components/settings/KeepCommandsExpandedRow";
+import { TranscriptDisplayModeRow } from "../../components/settings/TranscriptDisplayModeRow";
 import { FontSizeRow } from "../../components/settings/FontSizeRow";
 import { LanguageRow } from "../../components/settings/LanguageRow";
 import { SettingsMenuSelect } from "../../components/settings/SettingsMenuSelect";
@@ -547,7 +547,7 @@ export function SettingsPage() {
                 <CommandShellRow settings={settings} saveSettings={saveSettings} />
                 <LinkOpenTargetRow settings={settings} saveSettings={saveSettings} />
                 <ShowThinkingRow settings={settings} saveSettings={saveSettings} />
-                <KeepCommandsExpandedRow settings={settings} saveSettings={saveSettings} />
+                <TranscriptDisplayModeRow settings={settings} saveSettings={saveSettings} />
                 <ContextUsageDisplayRow
                   settings={settings}
                   saveSettings={saveSettings}
@@ -580,6 +580,20 @@ export function SettingsPage() {
                     checked={settings.smoothStreaming !== false}
                     label={t("settings.smoothStreaming")}
                     onChange={() => void saveSettings({ smoothStreaming: !(settings.smoothStreaming !== false) })}
+                  />
+                </SettingsRow>
+                <SettingsRow
+                  title={t("settings.inlineVisualizations")}
+                  description={t("settings.inlineVisualizationsDesc")}
+                >
+                  <SettingsToggle
+                    checked={settings.inlineVisualizations === true}
+                    label={t("settings.inlineVisualizations")}
+                    onChange={() =>
+                      void saveSettings({
+                        inlineVisualizations: settings.inlineVisualizations !== true,
+                      })
+                    }
                   />
                 </SettingsRow>
                 <LargePasteThresholdRow
