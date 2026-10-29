@@ -1,13 +1,16 @@
 import { create } from "zustand";
 import type {
   AppSettings,
+  AccountState,
   ModelInfo,
   PlanningState,
 } from "@pi-desktop/shared";
 import {
+  ErrorCodes,
   migrateKeybindingOverrides,
   normalizeMode,
   PROTOCOL_VERSION,
+  SIGNED_OUT_ACCOUNT_STATE,
 } from "@pi-desktop/shared";
 import { api } from "../lib/api";
 import { rememberProject } from "../lib/recent-projects";
@@ -153,6 +156,12 @@ const transcriptReading = createTranscriptReadingRuntime(runtimeStoreAccess, api
  * user is working in (`activeSessionId`, `messages`, `page`, panes).
  */
 let bootstrapGeneration = 0;
+/**
+ * Guards the account read the same way `bootstrapGeneration` guards the host
+ * bootstrap: a sign-out that lands while a slower read is in flight must not be
+ * overwritten by that read's stale answer.
+ */
+let accountRefreshGeneration = 0;
 
 export const useAppStore = create<AppState>((set, get) => {
   storeAccess = { get, set };
@@ -443,6 +452,70 @@ export const useAppStore = create<AppState>((set, get) => {
         error: e instanceof Error ? e.message : String(e),
       });
     }
+  },
+
+  refreshAccount: async () => {
+    const generation = ++accountRefreshGeneration;
+    try {
+      const account = await api.getAccountState();
+      if (generation !== accountRefreshGeneration) return;
+      get().applyAccountState(account);
+    } catch (error) {
+      if (generation !== accountRefreshGeneration) return;
+      // Resolution failed, so the gate stays closed *and unresolved*. Deliberately
+      // not a signed-out account: an identity that cannot be read is not evidence
+      // that nobody is signed in, and reporting it as one would tear the shell
+      // down around a user whose session is fine.
+      set({
+        accountResolved: false,
+        error:
+          error instanceof Error ? error.message : "Unable to read the saved account",
+        errorCode: ErrorCodes.HOST_UNAVAILABLE,
+      });
+    }
+  },
+
+  applyAccountState: (account) => {
+    const previous = get().account;
+    const identityChanged =
+      previous.signedIn !== account.signedIn || previous.username !== account.username;
+
+    if (!identityChanged) {
+      // A profile refresh or a silent session renewal: same person, same gate.
+      set({ account, accountResolved: true });
+      return;
+    }
+
+    if (!account.signedIn) {
+      // Closing the gate. Everything that belonged to the previous account goes
+      // with it, so none of it is still mounted behind the sign-in surface or
+      // waiting for whoever signs in next.
+      set({
+        account,
+        accountResolved: true,
+        page: "chat",
+        navStack: [{ page: "chat" }],
+        navIndex: 0,
+        activeSessionId: undefined,
+        messages: [],
+        // The previous account's conversations are unreachable behind the gate;
+        // retaining their panes would paint them for whoever signs in next.
+        ...clearSessionPanes(),
+        providers: [],
+        providerModels: {},
+      });
+      return;
+    }
+
+    // Opening the gate, or switching account: land on the chat page with a clean
+    // navigation stack, so "back" cannot walk into the pre-sign-in state.
+    set({
+      account,
+      accountResolved: true,
+      page: "chat",
+      navStack: [{ page: "chat" }],
+      navIndex: 0,
+    });
   },
 
   ...createWorkPanelSlice({

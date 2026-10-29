@@ -57,6 +57,16 @@ export type LifecycleDialogRequest = {
 export type LifecycleDialogDismiss = { requestId: string };
 export const IPC = {
   invoke: {
+    /**
+     * Account sign-in gate. Every one of these is served by the main process,
+     * which owns the HTTP conversation and the long-lived credential: the
+     * renderer never sees a token, a cookie, or a password after sign-in.
+     */
+    accountCaptchaGet: "pi-desktop/account/captcha",
+    accountSignIn: "pi-desktop/account/signIn",
+    accountSignOut: "pi-desktop/account/signOut",
+    accountStateGet: "pi-desktop/account/state",
+    accountProfileRefresh: "pi-desktop/account/profileRefresh",
     storageGet: "pi-desktop/storage/get",
     storageChoose: "pi-desktop/storage/choose",
     storageMigrate: "pi-desktop/storage/migrate",
@@ -440,6 +450,12 @@ export const IPC = {
     nativeMenuAction: "pi-desktop/menu/nativeAction",
   },
   event: {
+    /**
+     * The signed-in identity changed: a sign-in, a sign-out, or a session the
+     * main process could not restore. The renderer's outermost gate listens
+     * here, so a sign-out closes the shell wherever the user triggered it.
+     */
+    accountChanged: "pi-desktop/account/event/changed",
     pluginChanged: "pi-desktop/event/pluginChanged",
     /** Progress of an install or update, while it is still running. */
     pluginInstallProgress: "pi-desktop/plugin/event/installProgress",

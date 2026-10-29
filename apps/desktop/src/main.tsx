@@ -14,7 +14,16 @@ import "./styles/globals.css";
 
 const rendererSurface = new URLSearchParams(window.location.search).get("surface");
 if (rendererSurface) document.documentElement.dataset.surface = rendererSurface;
-document.documentElement.dataset.theme = "dark";
+// First paint follows the OS until the settings-driven theme effect takes over
+// (`useAppShellRuntime`), which resolves the same `system` preference against
+// `matchMedia`. Hardcoding a palette here would flash the wrong one on every
+// launch of a light-mode desktop — including the sign-in surface, which is the
+// first thing the user sees.
+document.documentElement.dataset.theme = window.matchMedia(
+  "(prefers-color-scheme: light)",
+).matches
+  ? "light"
+  : "dark";
 // Window-chrome layout differs per OS (traffic lights left on macOS,
 // controls overlay right on Windows/Linux); set before first paint.
 document.documentElement.dataset.platform =

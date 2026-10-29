@@ -199,7 +199,7 @@ test("Windows and Linux use menu-free frameless chrome with window controls", ()
   // never reaches the shell is still closable (issue #831).
   assert.match(
     appSource,
-    /\{shell\}[\s\S]*?\{\(ready && !showSplash\) \|\| startupPhase !== "starting" \?/,
+    /\{shell\}[\s\S]*?\{\(bootResolved && account\.signedIn && !showSplash\) \|\| startupPhase !== "starting" \?/,
   );
   assert.match(
     stylesSource,

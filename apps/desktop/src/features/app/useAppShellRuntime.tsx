@@ -56,6 +56,9 @@ export function useAppShellRuntime() {
   const platform = window.piDesktop?.platform ?? "darwin";
   const bootstrap = useAppStore((s) => s.bootstrap);
   const ready = useAppStore((s) => s.ready);
+  const account = useAppStore((s) => s.account);
+  const accountResolved = useAppStore((s) => s.accountResolved);
+  const refreshAccount = useAppStore((s) => s.refreshAccount);
   const page = useAppStore((s) => s.page);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const acknowledgeSessionOutcome = useAppStore(
@@ -411,6 +414,10 @@ export function useAppShellRuntime() {
     async (command: AppMenuCommand) => {
       try {
         const store = useAppStore.getState();
+        // The gate is closed: menu and tray commands must not mutate sessions,
+        // projects, or settings on behalf of nobody. The sign-in surface is the
+        // only thing the shell owns while this holds.
+        if (!store.account.signedIn) return;
         switch (command) {
           case "newTask":
             if (workPanelMaximizedRef.current) setWorkPanelMaximized(false);
@@ -631,6 +638,37 @@ export function useAppShellRuntime() {
       void api.menuRendererReady().catch(() => undefined);
     });
   }, [bootstrap]);
+
+  // The account read starts beside the host bootstrap rather than inside it:
+  // the two settle independently, so a slow or unreachable account service
+  // delays the gate without holding up sessions, providers, or settings.
+  useEffect(() => {
+    void refreshAccount();
+  }, [refreshAccount]);
+  // Main pushes the identity after a sign-in, a sign-out, or a session it could
+  // not restore. A sign-out closes the gate immediately, wherever it was
+  // triggered from.
+  useEffect(() => {
+    return api.onAccountChanged((state) =>
+      useAppStore.getState().applyAccountState(state),
+    );
+  }, []);
+
+  // A window focus is the only moment this app would notice a session that
+  // lapsed while it sat in the background. `probe()` is free while the session
+  // is outside its renewal lead, so this costs nothing in the common case.
+  useEffect(() => {
+    const onFocus = () => {
+      void api
+        .refreshAccountProfile()
+        .then((state) => {
+          useAppStore.getState().applyAccountState(state);
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   // The menu/tray acknowledgement also follows `ready`, not only the first
   // attempt's `finally`. A startup the watchdog retried is exactly one whose
@@ -1075,6 +1113,14 @@ export function useAppShellRuntime() {
   return {
     t,
     ready,
+    account,
+    accountResolved,
+    /**
+     * The gate's own condition. The shell mounts only once the local snapshot
+     * has settled *and* the identity is known, so a signed-in user never sees
+     * the sign-in surface flash past and a signed-out one never sees the shell.
+     */
+    bootResolved: ready && accountResolved,
     page,
     activeSessionId,
     workPanelOpen,

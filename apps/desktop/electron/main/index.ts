@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   ipcMain,
   powerMonitor,
+  safeStorage,
   session,
 } from "electron";
 import { join } from "node:path";
@@ -51,6 +52,13 @@ import { hasSingleInstanceLock, isDevelopmentBuild } from "./installation";
 import { getStorageBootstrap } from "./storage/bootstrap";
 import { createPlanUiProbe } from "./plan-ui-probe";
 import { registerIpcHandlers } from "./ipc/register";
+import {
+  ACCOUNT_BASE_URL_ENV,
+  DEFAULT_ACCOUNT_BASE_URL,
+  createGunyuClient,
+} from "./account/gunyu-client";
+import { createCredentialStore } from "./account/credential-store";
+import { createAccountService } from "./account/service";
 import { createVoiceService } from "./voice-service";
 import { MicrophoneLeaseRegistry } from "./live-voice/microphone-lease";
 import { createLiveCallService } from "./live-voice/runtime";
@@ -499,6 +507,62 @@ function sendToRenderer(channel: string, payload: unknown) {
 
 installInsecureEndpointNotice(sendToRenderer);
 
+/**
+ * The sign-in gate.
+ *
+ * Constructed at module scope rather than inside the boot promise because
+ * `registerIpc` needs it synchronously, and because the credential store has to
+ * exist before the first window loads so the renderer's boot read can answer.
+ *
+ * `safeStorage` is reached through the same `EncryptionPort` the remote-host
+ * registry uses, which keeps the account modules testable without Electron.
+ */
+const accountLog = (
+  level: "warn" | "error",
+  message: string,
+  data?: Record<string, unknown>,
+) => logger.app("runtime", level, message, { data });
+
+const accountService = createAccountService({
+  client: createGunyuClient({
+    baseUrl: process.env[ACCOUNT_BASE_URL_ENV]?.trim() || DEFAULT_ACCOUNT_BASE_URL,
+    log: accountLog,
+  }),
+  store: createCredentialStore({
+    dataDir,
+    encryption: {
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encryptString: (plain) => safeStorage.encryptString(plain),
+      decryptString: (buffer) => safeStorage.decryptString(buffer),
+    },
+    log: accountLog,
+  }),
+  log: accountLog,
+  onChanged: (state) => {
+    sendToRenderer(IPC.event.accountChanged, state);
+    applyAccountWindowChrome(state.signedIn);
+  },
+});
+
+/**
+ * macOS draws native traffic lights for a `hiddenInset` title bar, and the
+ * sign-in surface draws its own as part of its design. Hiding the native pair
+ * while the gate is closed keeps the two from doubling up; the drawn ones are
+ * wired to the real window actions, so no capability is lost. Every other
+ * platform already draws its controls in the renderer.
+ */
+function applyAccountWindowChrome(signedIn: boolean) {
+  if (process.platform !== "darwin") return;
+  const window = getMainWindow();
+  if (!window || window.isDestroyed()) return;
+  try {
+    window.setWindowButtonVisibility(signedIn);
+  } catch {
+    // An OS that refuses the call leaves the native buttons visible: a cosmetic
+    // doubling, never a broken window.
+  }
+}
+
 applicationLifecycle = createApplicationLifecycle({
   getRunningSessionIds: () => activeTurns.keys(),
   state: windowLifecycleState,
@@ -876,6 +940,8 @@ const liveCallService = createLiveCallService({
 
 function registerIpc() {
   return registerIpcHandlers({
+    accountService,
+    accountSyncWindowChrome: applyAccountWindowChrome,
     restartForStorage: () => {
       shutdownState.quitConfirmed = true;
       app.relaunch({ args: [...process.argv.slice(1).filter((arg) => arg !== "--pi-managed-storage"), "--pi-managed-storage"] });
@@ -1032,10 +1098,24 @@ void app.whenReady().then(() => {
   });
   powerMonitor.on("suspend", () => void liveCallService.endForLifecycle("app-suspended"));
   powerMonitor.on("lock-screen", () => void liveCallService.endForLifecycle("app-suspended"));
+  // Resolve the sign-in gate before the renderer asks for it. A session that
+  // has not lapsed settles from disk with no round trip, so boot never depends
+  // on the account service being up. If it settles before the window exists the
+  // broadcast is dropped, and the renderer's boot state read picks the settled
+  // value up instead — both paths land on the same answer.
+  void accountService.restore().catch((error: unknown) => {
+    accountLog("error", "account restore failed", {
+      cause: error instanceof Error ? error.name : "unknown",
+    });
+  });
 });
 
 // The widget is chrome for a call this window owns; it must never outlive the app.
 app.once("will-quit", () => liveVoiceWidget.close());
+
+// The renewal timer must not outlive the app, or a pending probe fires into a
+// torn-down main process.
+app.once("will-quit", () => accountService.dispose());
 
 registerApplicationStartup({
   hasSingleInstanceLock,

@@ -30,6 +30,7 @@ import { workPanelLayout } from "../../lib/work-panel-resize";
 import { LiveVoiceStatusHost } from "../voice/live/LiveVoiceStatusHost";
 import { CollapsedTitlebarActions, RoutePending } from "./chrome";
 import { useAppShellRuntime } from "./useAppShellRuntime";
+import { LoginScreen } from "../../components/LoginScreen";
 
 const SettingsPage = lazy(() =>
   import("../../pages/SettingsPage").then((module) => ({
@@ -61,6 +62,8 @@ export function AppShell() {
   const {
     t,
     ready,
+    account,
+    bootResolved,
     page,
     activeSessionId,
     workPanelOpen,
@@ -140,7 +143,12 @@ export function AppShell() {
     );
 
   let shell: ReactNode = null;
-  if (ready) {
+  if (bootResolved && !account.signedIn) {
+    // Outermost gate: the sign-in surface replaces the whole shell — sidebar,
+    // chat, work panel, settings — so none of the app's own navigation can
+    // route around it. Nothing below this branch mounts while it is closed.
+    shell = <LoginScreen />;
+  } else if (bootResolved) {
     shell = (
       <>
         <PortalVisibilityProvider visible={page !== "settings"}>
@@ -366,8 +374,8 @@ export function AppShell() {
       ref={appShellRef}
       className={cx(
         "app-shell",
-        !ready && "app-shell-boot",
-        page === "settings" && ready && "settings-mode",
+        !bootResolved && "app-shell-boot",
+        page === "settings" && bootResolved && account.signedIn && "settings-mode",
         sidebarCollapsed && "sidebar-collapsed",
         workPanelMaximized && "work-panel-maximized",
         showSplash && "is-booting",
@@ -381,10 +389,18 @@ export function AppShell() {
           bare `!showSplash` test would leave the recovery surface without any
           window controls — the only ones a frameless Windows/Linux window has.
           The controls therefore follow the boot surface that is actually up. */}
-      {(ready && !showSplash) || startupPhase !== "starting" ? (
+      {/* The sign-in surface draws its own window controls as part of its
+          design, so the shell's must not sit on top of them. The startup
+          recovery surface has no such controls of its own and is the only
+          chrome a frameless Windows/Linux window gets (issue #831), so it keeps
+          them whatever the gate says. */}
+      {(bootResolved && account.signedIn && !showSplash) || startupPhase !== "starting" ? (
         <WindowControls />
       ) : null}
-      <ProjectCreateDialog />
+      {/* Project creation acts on the signed-in user's work; behind the gate it
+          would be reachable with nobody signed in. The lifecycle dialog is
+          window chrome rather than account data, so it stays. */}
+      {account.signedIn ? <ProjectCreateDialog /> : null}
       <LifecycleConfirmationDialog />
       {splash}
       {startupRecovery}

@@ -44,6 +44,7 @@ import { SettingsMenuSelect } from "../../components/settings/SettingsMenuSelect
 import { ThemeRow } from "../../components/settings/ThemeRow";
 import { MacosWindowTranslucencyRow } from "../../components/settings/MacosWindowTranslucencyRow";
 import { NetworkProxySection } from "../../components/settings/NetworkProxySection";
+import { AccountSection } from "./AccountSection";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { AgentSkillsPage } from "../../components/settings/AgentSkillsPage";
 import { AgentMcpPage } from "../../components/settings/AgentMcpPage";
@@ -410,6 +411,9 @@ export function SettingsPage() {
 
           {tab === "general" && settings && (
             <div className="settings-stack">
+              {/* Who is signed in, and the way out. First row of Basics because
+                  every other setting belongs to this account. */}
+              <AccountSection />
               <SettingsCard title={t("settings.appearance")}>
                 <ThemeRow settings={settings} saveSettings={saveSettings} />
                 <LanguageRow settings={settings} saveSettings={saveSettings} />
