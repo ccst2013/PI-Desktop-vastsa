@@ -145,3 +145,41 @@ test("the stylesheet is imported in the cascade, before the responsive tail", ()
 test("reduced motion silences the surface's animation", () => {
   assert.match(loginCss, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+/**
+ * The surface is the window, so its column has to hand out every pixel it is
+ * given. A missing `flex-grow` anywhere in the chain leaves the status bar
+ * floating mid-window with bare gradient beneath it, which no colour or type
+ * check can see.
+ */
+test("the vertical chain reaches the window's bottom edge", () => {
+  const rule = (selector) => {
+    const start = loginCss.indexOf(`\n${selector} {`);
+    assert.ok(start >= 0, `${selector} is styled`);
+    return loginCss.slice(start, loginCss.indexOf("\n}", start));
+  };
+  // The screen column: title bar, then the panes, which take the rest.
+  assert.match(rule(".login-screen"), /flex-direction: column;/);
+  assert.match(rule(".login-window"), /flex: 1 1 auto;/);
+  assert.match(rule(".login-body"), /flex: 1 1 auto;/);
+  assert.match(rule(".login-body"), /min-height: 0;/);
+  // Each pane fills the body, and the form's own column keeps its footer.
+  assert.match(rule(".login-pane-form"), /flex: 1 1 auto;/);
+  assert.match(rule(".login-statusbar"), /height: 44px;/);
+});
+
+test("the form scrolls, never the pane that holds the status bar", () => {
+  // Scrolling the pane would carry the status bar off the bottom edge.
+  assert.match(loginCss, /\.login-form-wrap \{[\s\S]*?overflow-y: auto;[\s\S]*?\}/);
+  const paneForm = loginCss.slice(
+    loginCss.indexOf(".login-pane-form {"),
+    loginCss.indexOf("\n}", loginCss.indexOf(".login-pane-form {")),
+  );
+  assert.doesNotMatch(paneForm, /overflow-y:/);
+});
+
+test("a short window drops the decorative stack, not the terms footer", () => {
+  // The brand pane clips its glows, so below a point the stack has to go: the
+  // alternative is the terms footer being cut off, which is content.
+  assert.match(loginCss, /@media \(max-height: 700px\) \{\s*\.login-specimen \{ display: none; \}/);
+});

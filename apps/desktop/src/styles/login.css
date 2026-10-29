@@ -152,6 +152,10 @@
 
 .login-body {
   display: flex;
+  flex: 1 1 auto;
+  /* The panes column must claim the height the title bar leaves over, or the
+     status bar floats mid-window with bare gradient beneath it. */
+  min-height: 0;
   align-items: stretch;
 }
 
@@ -170,6 +174,13 @@
 
 @media (min-width: 768px) {
   .login-pane-brand { display: flex; }
+}
+
+/* The pane clips its glows, so a short window would cut the specimen stack
+   through the middle and push the terms footer out of sight. The stack is
+   decoration; the footer is not. */
+@media (max-height: 700px) {
+  .login-specimen { display: none; }
 }
 
 .login-brand-glow-a,
@@ -252,6 +263,11 @@
    into three parts stranded at either edge. */
 .login-brand-lede {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  /* The slack a tall window leaves over is split above and below the copy, so
+     the mark does not sit stranded at the top with a gap under the paragraph. */
+  justify-content: center;
 }
 
 .login-specimen {
@@ -447,7 +463,6 @@
   flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
-  overflow-y: auto;
   background: var(--ds-login-pane-form-bg);
 }
 
@@ -455,7 +470,12 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  padding: 48px 40px 28px;
+  justify-content: center;
+  /* The scrollable part is the form, not the pane: at the minimum window height
+     the status bar must stay on the bottom edge rather than scroll away. */
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px 40px;
 }
 
 .login-form-wrap.is-shaking { animation: login-shake 0.5s both; }
@@ -488,7 +508,6 @@
 
 .login-form {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
   gap: 16px;
   margin-top: 24px;
@@ -796,10 +815,6 @@
 @keyframes login-spin { to { transform: rotate(360deg); } }
 
 .login-demo-note {
-  /* The form fills the pane, so the note falls to its bottom edge and the
-     status bar reads as a footer rather than a gap-filler. */
-  margin-top: auto;
-  padding-top: 24px;
   text-align: center;
   font-size: var(--text-2xs);
   line-height: var(--leading-relaxed);
