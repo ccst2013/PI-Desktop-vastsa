@@ -16,10 +16,8 @@ export type AuroraField = {
   a: string;
   b: string;
   c: string;
-  glow: string;
   /** Ink that clears 4.5:1 against this field. */
   ink: string;
-  base: string;
   glassTint: number;
   glassEdge: number;
 };
@@ -32,9 +30,7 @@ export const AURORA_FIELDS: readonly AuroraField[] = [
     a: "#ee5a86",
     b: "#a05cc4",
     c: "#4a6ce2",
-    glow: "rgba(255,255,255,0.5)",
     ink: "#2b1244",
-    base: "#8f66c9",
     glassTint: 0.3,
     glassEdge: 0.45,
   },
@@ -44,9 +40,7 @@ export const AURORA_FIELDS: readonly AuroraField[] = [
     a: "#ff8a3d",
     b: "#f4518f",
     c: "#8f4ad6",
-    glow: "rgba(255,236,190,0.55)",
     ink: "#3b1024",
-    base: "#d4699b",
     glassTint: 0.3,
     glassEdge: 0.45,
   },
@@ -56,9 +50,7 @@ export const AURORA_FIELDS: readonly AuroraField[] = [
     a: "#2fd6c3",
     b: "#4a86e2",
     c: "#7a4ad6",
-    glow: "rgba(210,255,250,0.5)",
     ink: "#0e2f3c",
-    base: "#3f9bd8",
     glassTint: 0.3,
     glassEdge: 0.45,
   },
@@ -68,9 +60,7 @@ export const AURORA_FIELDS: readonly AuroraField[] = [
     a: "#3b1f5e",
     b: "#6d3fd4",
     c: "#1f2f6b",
-    glow: "rgba(200,180,255,0.42)",
     ink: "#f2ecfb",
-    base: "#241539",
     glassTint: 0.14,
     glassEdge: 0.28,
   },

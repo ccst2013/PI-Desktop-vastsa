@@ -287,25 +287,13 @@ export function LoginScreen() {
     "--ds-login-aurora-1": field.a,
     "--ds-login-aurora-2": field.b,
     "--ds-login-aurora-3": field.c,
-    "--ds-login-aurora-glow": field.glow,
     "--ds-login-ink": field.ink,
-    "--ds-login-base": field.base,
     "--ds-login-glass-tint": String(field.glassTint),
     "--ds-login-glass-edge": String(field.glassEdge),
   } as CSSProperties;
 
   return (
     <main className="login-screen" style={fieldStyle}>
-      <div className="login-aurora" aria-hidden="true">
-        <div className="login-blob login-blob-1" />
-        <div className="login-blob login-blob-2" />
-        <div className="login-blob login-blob-3" />
-      </div>
-      <div className="login-grain" aria-hidden="true" />
-      <div className="login-shard login-shard-a" aria-hidden="true" />
-      <div className="login-shard login-shard-b" aria-hidden="true" />
-      <div className="login-shard login-shard-c" aria-hidden="true" />
-
       <div className="login-window">
         {/* Title bar: a real drag region; the controls opt back out. */}
         <div className="login-titlebar">

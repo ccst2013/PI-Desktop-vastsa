@@ -28,163 +28,34 @@
   inset: 0;
   z-index: 99;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  flex-direction: column;
   overflow: hidden;
-  background: var(--ds-login-base);
-  color: var(--ds-login-ink);
-  font-family: var(--font-sans);
-  -webkit-app-region: drag;
-}
-
-/* ---------- aurora field ---------- */
-
-.login-aurora {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
+  /* The field gradient is the window's own background: the surface is the
+     window, not a card floating in a backdrop. */
   background: linear-gradient(
     45deg,
     var(--ds-login-aurora-1) 0%,
     var(--ds-login-aurora-2) 48%,
     var(--ds-login-aurora-3) 100%
   );
+  color: var(--ds-login-ink);
+  font-family: var(--font-sans);
   transition: background 0.6s ease;
-}
-
-.login-blob {
-  position: absolute;
-  border-radius: var(--radius-round);
-  filter: blur(80px);
-  opacity: 0.5;
-  will-change: transform;
-  background: radial-gradient(closest-side, var(--ds-login-aurora-glow), transparent 70%);
-}
-
-.login-blob-1 {
-  width: 60vw;
-  height: 60vw;
-  left: -16vw;
-  top: -20vw;
-  animation: login-drift-a 26s ease-in-out infinite alternate;
-}
-
-.login-blob-2 {
-  width: 50vw;
-  height: 50vw;
-  left: -4vw;
-  bottom: -24vw;
-  opacity: 0.32;
-  animation: login-drift-b 32s ease-in-out infinite alternate;
-}
-
-.login-blob-3 {
-  width: 62vw;
-  height: 62vw;
-  right: -20vw;
-  bottom: -26vw;
-  opacity: 0.3;
-  animation: login-drift-c 29s ease-in-out infinite alternate;
-}
-
-@keyframes login-drift-a {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to { transform: translate3d(8vw, 6vh, 0) scale(1.14); }
-}
-
-@keyframes login-drift-b {
-  from { transform: translate3d(0, 0, 0) scale(1.05); }
-  to { transform: translate3d(10vw, -5vh, 0) scale(0.92); }
-}
-
-@keyframes login-drift-c {
-  from { transform: translate3d(0, 0, 0) scale(0.95); }
-  to { transform: translate3d(-9vw, -7vh, 0) scale(1.16); }
-}
-
-/* Fine grain over the field, as in the design. The SVG carries no literal
-   colour: its rect is opacity-only, so the guard sees nothing to flag. */
-.login-grain {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.07;
-  mix-blend-mode: soft-light;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");
-}
-
-/* Floating glass shards behind the window: depth without content. */
-.login-shard {
-  position: fixed;
-  border-radius: var(--radius-2xl);
-  backdrop-filter: saturate(160%) blur(18px);
-  -webkit-backdrop-filter: saturate(160%) blur(18px);
-  background: var(--ds-login-shard-bg);
-  border: 1px solid var(--ds-login-shard-border);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen);
-}
-
-.login-shard-a {
-  width: 300px;
-  height: 200px;
-  left: 4vw;
-  top: 12vh;
-  transform: rotate(-8deg);
-  animation: login-float-a 11s ease-in-out infinite alternate;
-}
-
-.login-shard-b {
-  width: 240px;
-  height: 300px;
-  right: 4vw;
-  bottom: 8vh;
-  transform: rotate(7deg);
-  animation: login-float-b 13s ease-in-out infinite alternate;
-}
-
-.login-shard-c {
-  width: 150px;
-  height: 150px;
-  right: 14vw;
-  top: 7vh;
-  transform: rotate(14deg);
-  animation: login-float-a 9s ease-in-out infinite alternate-reverse;
-}
-
-@keyframes login-float-a {
-  from { translate: 0 -10px; }
-  to { translate: 0 14px; }
-}
-
-@keyframes login-float-b {
-  from { translate: 0 12px; }
-  to { translate: 0 -12px; }
+  -webkit-app-region: drag;
 }
 
 /* ---------- the window ---------- */
 
+/* A column of title bar, panes and status bar over the field gradient. The
+   design's window frame is the OS window itself, so nothing here draws a
+   border, a radius or a drop shadow of its own. */
 .login-window {
   position: relative;
-  width: 100%;
-  max-width: 900px;
-  border-radius: var(--radius-2xl);
-  overflow: hidden;
-  backdrop-filter: saturate(187%) blur(35px);
-  -webkit-backdrop-filter: saturate(187%) blur(35px);
-  background: var(--ds-login-window-bg);
-  border: 1px solid var(--ds-login-glass-border-strong);
-  box-shadow:
-    inset 0 1px 0 var(--ds-login-glass-sheen-top),
-    var(--ds-login-shadow),
-    0 12px 40px -20px var(--ds-login-glass-shadow-lift);
-  animation: login-window-in 0.6s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   -webkit-app-region: no-drag;
-}
-
-@keyframes login-window-in {
-  from { opacity: 0; transform: translateY(22px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .login-titlebar {
@@ -601,6 +472,7 @@
   flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
+  overflow-y: auto;
   background: var(--ds-login-pane-form-bg);
 }
 
@@ -1118,13 +990,10 @@
 .login-icon { display: block; }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-blob,
-  .login-shard,
   .login-spec-plate,
   .login-spec-plate::before,
   .login-spec-tick.on,
   .login-spec-chip,
-  .login-window,
   .login-captcha-flip,
   .login-success-shield,
   .login-toast,

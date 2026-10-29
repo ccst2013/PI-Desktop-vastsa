@@ -222,11 +222,9 @@
     field. Defined here, in the theme root, because these are exactly the values
     a contributed theme must be able to move; login.css only consumes them.
   */
-  --ds-login-base: #241539;
   --ds-login-aurora-1: #3b1f5e;
   --ds-login-aurora-2: #6d3fd4;
   --ds-login-aurora-3: #1f2f6b;
-  --ds-login-aurora-glow: rgba(200, 180, 255, 0.42);
   --ds-login-ink: #f2ecfb;
   --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 62%, transparent);
   --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 44%, transparent);
@@ -236,7 +234,6 @@
   --ds-login-primary-ink: #ffffff;
   --ds-login-danger: #ff6b6b;
   --ds-login-accent: #f06595;
-  --ds-login-shadow: rgba(8, 3, 18, 0.6) 0 50px 120px -40px;
   --ds-login-traffic-close: #ff5f57;
   --ds-login-traffic-minimize: #febc2e;
   --ds-login-traffic-zoom: #28c840;
@@ -259,13 +256,6 @@
   --ds-login-glass-fill-on: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.38));
   --ds-login-glass-fill-input: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.12));
   --ds-login-glass-fill-input-focus: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.3));
-  --ds-login-glass-shadow-lift: rgb(255 255 255 / 0.25);
-  --ds-login-window-bg: linear-gradient(
-    170deg,
-    rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.22)),
-    rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.08)) 60%,
-    rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.16))
-  );
   --ds-login-titlebar-border: rgb(255 255 255 / 0.35);
   --ds-login-titlebar-bg: rgb(255 255 255 / 0.12);
   --ds-login-pane-brand: linear-gradient(
@@ -276,8 +266,6 @@
   );
   --ds-login-pane-form-bg: rgb(255 255 255 / 0.18);
   --ds-login-brand-glow: rgb(255 255 255 / 0.22);
-  --ds-login-shard-bg: rgb(255 255 255 / 0.14);
-  --ds-login-shard-border: rgb(255 255 255 / 0.35);
   --ds-login-spec-plate-bg: linear-gradient(
     120deg,
     rgb(255 255 255 / 0.6),
@@ -392,11 +380,9 @@
   --ds-bg-elevated-primary: color-mix(in oklab, #ffffff 70%, transparent);
 
   /* Sign-in surface, light palette: the design's "sunlight" aurora field. */
-  --ds-login-base: #8f66c9;
   --ds-login-aurora-1: #ee5a86;
   --ds-login-aurora-2: #a05cc4;
   --ds-login-aurora-3: #4a6ce2;
-  --ds-login-aurora-glow: rgba(255, 255, 255, 0.5);
   --ds-login-ink: #2b1244;
   --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 60%, transparent);
   --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 45%, transparent);
@@ -406,7 +392,6 @@
   --ds-login-primary-ink: #ffffff;
   --ds-login-danger: #e03131;
   --ds-login-accent: #c2255c;
-  --ds-login-shadow: rgba(59, 17, 110, 0.42) 0 50px 120px -40px;
   --ds-login-traffic-close: #ff5f57;
   --ds-login-traffic-minimize: #febc2e;
   --ds-login-traffic-zoom: #28c840;

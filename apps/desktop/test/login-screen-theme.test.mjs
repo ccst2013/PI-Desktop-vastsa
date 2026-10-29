@@ -50,18 +50,15 @@ test("the palette tokens live on both theme roots; the glass formulas on :root",
   // The palette a theme may move: both roots must define each of these, or one
   // palette would fall through to the other's values.
   const palette = [
-    "--ds-login-base",
     "--ds-login-aurora-1",
     "--ds-login-aurora-2",
     "--ds-login-aurora-3",
-    "--ds-login-aurora-glow",
     "--ds-login-ink",
     "--ds-login-glass-tint",
     "--ds-login-glass-edge",
     "--ds-login-primary",
     "--ds-login-danger",
     "--ds-login-accent",
-    "--ds-login-shadow",
   ];
   for (const name of palette) {
     assert.ok(darkBlock.includes(`${name}:`), `dark root defines ${name}`);
@@ -74,7 +71,6 @@ test("the palette tokens live on both theme roots; the glass formulas on :root",
   // math into literals.
   for (const name of [
     "--ds-login-glass-sheen",
-    "--ds-login-window-bg",
     "--ds-login-pane-brand",
   ]) {
     assert.ok(darkBlock.includes(`${name}:`), `:root defines the ${name} formula`);
