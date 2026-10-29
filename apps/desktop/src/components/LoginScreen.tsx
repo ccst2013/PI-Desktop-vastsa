@@ -20,7 +20,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -36,12 +35,7 @@ import {
 } from "@pi-desktop/shared";
 import { api } from "../lib/api";
 import { useAppStore } from "../stores/app-store";
-import {
-  defaultAuroraField,
-  LoginBrandPane,
-  resolvedThemeFromDocument,
-  type AuroraField,
-} from "./login/LoginBrandPane";
+import { LoginBrandPane } from "./login/LoginBrandPane";
 import { LoginIcon } from "./login/LoginIcons";
 
 type FieldErrors = {
@@ -79,9 +73,6 @@ export function LoginScreen() {
   const [attempts, setAttempts] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [clock, setClock] = useState(readClock);
-  const [field, setField] = useState<AuroraField>(() =>
-    defaultAuroraField(resolvedThemeFromDocument()),
-  );
   const [captcha, setCaptcha] = useState<AccountCaptcha | null>(null);
   const [captchaInput, setCaptchaInput] = useState("");
   const [captchaNonce, setCaptchaNonce] = useState(0);
@@ -93,8 +84,6 @@ export function LoginScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
-  /** A field the user picked by hand wins over the palette default. */
-  const fieldPickedByUser = useRef(false);
   /** The accepted sign-in, held back for the success beat. */
   const pendingState = useRef<AccountState | null>(null);
 
@@ -117,21 +106,6 @@ export function LoginScreen() {
   useEffect(() => {
     const tick = setInterval(() => setClock(readClock()), 1000);
     return () => clearInterval(tick);
-  }, []);
-
-  /* Follow the resolved theme: switching the OS appearance while the gate is
-     open moves the field between the design's light and dark defaults, unless
-     the user has picked a field by hand. */
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      if (fieldPickedByUser.current) return;
-      setField(defaultAuroraField(resolvedThemeFromDocument()));
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
   }, []);
 
   /**
@@ -283,17 +257,8 @@ export function LoginScreen() {
     void api.windowControl(action).catch(() => undefined);
   }, []);
 
-  const fieldStyle = {
-    "--ds-login-aurora-1": field.a,
-    "--ds-login-aurora-2": field.b,
-    "--ds-login-aurora-3": field.c,
-    "--ds-login-ink": field.ink,
-    "--ds-login-glass-tint": String(field.glassTint),
-    "--ds-login-glass-edge": String(field.glassEdge),
-  } as CSSProperties;
-
   return (
-    <main className="login-screen" style={fieldStyle}>
+    <main className="login-screen">
       <div className="login-window">
         {/* Title bar: a real drag region; the controls opt back out. */}
         <div className="login-titlebar">
@@ -346,13 +311,6 @@ export function LoginScreen() {
 
         <div className="login-body">
           <LoginBrandPane
-            field={field}
-            onField={(next) => {
-              if (next.id === field.id) return;
-              fieldPickedByUser.current = true;
-              setField(next);
-              say(t("account.themeSwitched", { name: t(next.nameKey) }));
-            }}
             clock={clock}
             onTerms={() => say(t("account.termsToast"))}
             onPrivacy={() => say(t("account.privacyToast"))}

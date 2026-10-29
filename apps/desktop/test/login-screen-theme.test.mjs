@@ -31,10 +31,20 @@ test("first paint resolves the palette from the OS, not a hardcoded value", () =
   );
 });
 
-test("the sign-in surface re-resolves when the resolved palette changes", () => {
-  assert.match(loginTsx, /MutationObserver/);
-  assert.match(loginTsx, /attributeFilter: \["data-theme"\]/);
-  assert.match(loginTsx, /defaultAuroraField\(resolvedThemeFromDocument\(\)\)/);
+test("the surface carries no palette of its own", () => {
+  // Following the system theme means the component overrides nothing: the
+  // gradient and the glass all resolve through the theme-root tokens, so a
+  // palette change (the OS, or a contributed theme) reaches the surface without
+  // any component state to update. The design's field-picker dots were removed
+  // for exactly this reason.
+  for (const file of [loginTsx, brandPane]) {
+    assert.doesNotMatch(file, /--ds-login-[a-z0-9-]+["']?\s*:/);
+    assert.doesNotMatch(file, /#[0-9a-f]{3,8}\b/i);
+    assert.doesNotMatch(file, /MutationObserver/);
+  }
+  assert.doesNotMatch(loginTsx, /style=\{/, "the surface sets no inline style");
+  // The field itself is a gradient over those tokens.
+  assert.match(loginCss, /background: linear-gradient\(\n\s*45deg,\n\s*var\(--ds-login-aurora-1\)/);
 });
 
 test("the palette tokens live on both theme roots; the glass formulas on :root", () => {

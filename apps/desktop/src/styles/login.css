@@ -159,7 +159,6 @@
   position: relative;
   display: none;
   flex-direction: column;
-  justify-content: space-between;
   gap: 28px;
   width: 44%;
   padding: 32px 36px;
@@ -248,9 +247,17 @@
 }
 
 /* Glass specimen stack: three tilted plates that stand for the workspace. */
+/* The lede grows: on a tall window the slack lands between the copy and the
+   specimen, which is where the design leaves it, rather than splitting the pane
+   into three parts stranded at either edge. */
+.login-brand-lede {
+  flex: 1 1 auto;
+}
+
 .login-specimen {
   position: relative;
   height: 186px;
+  flex-shrink: 0;
   perspective: 900px;
 }
 
@@ -396,50 +403,19 @@
 @keyframes login-spec-bob-b { 0%, 100% { translate: 0 4px; } 50% { translate: 0 -4px; } }
 @keyframes login-spec-bob-c { 0%, 100% { translate: 0 -2px; } 50% { translate: 0 6px; } }
 
-/* Brand pane footer. */
+/* Brand pane footer: one row, the terms line and the clock at either end. */
 .login-brand-footer {
   position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
   padding-top: 20px;
   border-top: 1px solid var(--ds-login-glass-border);
 }
 
-.login-brand-footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.login-theme-dots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.login-theme-dot {
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border-radius: var(--radius-round);
-  border: 1px solid var(--ds-login-glass-border);
-  cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.login-theme-dot:hover { transform: scale(1.1); }
-
-.login-theme-dot[aria-pressed="true"] {
-  border-color: var(--ds-login-glass-sheen-top);
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px var(--ds-login-glass-border);
-}
-
-.login-theme-name {
-  margin-left: 6px;
-  font-size: var(--text-2xs);
-  color: var(--ds-login-ink-soft);
-}
-
 .login-clock {
+  flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
   letter-spacing: var(--tracking-wide);
@@ -447,7 +423,6 @@
 }
 
 .login-terms {
-  margin-top: 12px;
   font-size: var(--text-2xs);
   line-height: var(--leading-relaxed);
   color: var(--ds-login-ink-faint);
@@ -480,8 +455,7 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  justify-content: center;
-  padding: 32px 40px;
+  padding: 48px 40px 28px;
 }
 
 .login-form-wrap.is-shaking { animation: login-shake 0.5s both; }
@@ -514,6 +488,7 @@
 
 .login-form {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 16px;
   margin-top: 24px;
@@ -821,6 +796,10 @@
 @keyframes login-spin { to { transform: rotate(360deg); } }
 
 .login-demo-note {
+  /* The form fills the pane, so the note falls to its bottom edge and the
+     status bar reads as a footer rather than a gap-filler. */
+  margin-top: auto;
+  padding-top: 24px;
   text-align: center;
   font-size: var(--text-2xs);
   line-height: var(--leading-relaxed);
