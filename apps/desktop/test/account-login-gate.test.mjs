@@ -138,6 +138,39 @@ test("a spent challenge is always replaced, never retried", () => {
   assert.match(login, /void fetchCaptcha\(\{ clearInput: true, focus: true \}\);/);
 });
 
+test("the captcha field survives a missing challenge", () => {
+  // The failure this guards is invisible in a healthy demo: when the challenge
+  // cannot be fetched, a conditional on the response removes the field entirely
+  // and the user is handed a form that is silently missing a required input.
+  // Only a service that answers `captchaEnabled: false` may drop it.
+  assert.match(
+    login,
+    /\{captcha\?\.captchaEnabled !== false \? \(/,
+    "the field must render unless the service explicitly disabled it",
+  );
+  // Its own loading and retry states, so the plate is never blank.
+  assert.match(login, /login-captcha-skeleton/);
+  assert.match(login, /t\("account\.captchaRetry"\)/);
+  assert.match(login, /setCaptchaLoading\(true\)/);
+  assert.match(login, /setCaptchaLoading\(false\)/);
+});
+
+test("an unfetched challenge is never read as an unnecessary one", () => {
+  // `captcha?.captchaEnabled ?? false` would let an unreachable service
+  // downgrade sign-in to no-captcha and post a request the service rejects.
+  assert.match(login, /const captchaEnabled = captcha\?\.captchaEnabled \?\? true;/);
+  const guard = login.slice(
+    login.indexOf("const captchaEnabled ="),
+    login.indexOf("validateAccountInput("),
+  );
+  assert.match(
+    guard,
+    /if \(captchaEnabled && !captcha\) \{[\s\S]*?return;[\s\S]*?\}/,
+    "sign-in must refuse to submit until the challenge is in hand",
+  );
+  assert.match(guard, /account\.error\.captchaUnavailable/);
+});
+
 test("main owns the HTTP conversation and the credentials", () => {
   assert.match(mainIndex, /createAccountService\(/);
   assert.match(mainIndex, /createGunyuClient\(/);

@@ -1,10 +1,10 @@
 /**
- * The sign-in surface's theme contract.
+ * The sign-in surface's theme and layout contract.
  *
- * "主题跟随系统" has three parts, each of which can regress invisibly: the first
- * paint must follow the OS rather than a hardcoded palette, the surface must
- * re-resolve when the OS changes, and its paint must stay reachable by the
- * theme system (tokens on both roots, no static ramps, no arbitrary utilities).
+ * Two properties are easy to break silently, and neither is visible to a colour
+ * or type check: the surface must carry no palette of its own (so "主题跟随系统"
+ * holds), and its column must hand out every pixel the window gives it (so the
+ * status bar stays on the bottom edge at any window height).
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -22,6 +22,12 @@ const loginTsx = read("src/components/LoginScreen.tsx");
 const brandPane = read("src/components/login/LoginBrandPane.tsx");
 const globals = read("src/styles/globals.css");
 
+const rule = (selector) => {
+  const start = loginCss.indexOf(`\n${selector} {`);
+  assert.ok(start >= 0, `${selector} is styled`);
+  return loginCss.slice(start, loginCss.indexOf("\n}", start));
+};
+
 test("first paint resolves the palette from the OS, not a hardcoded value", () => {
   assert.match(main, /prefers-color-scheme: light/);
   assert.doesNotMatch(
@@ -33,21 +39,19 @@ test("first paint resolves the palette from the OS, not a hardcoded value", () =
 
 test("the surface carries no palette of its own", () => {
   // Following the system theme means the component overrides nothing: the
-  // gradient and the glass all resolve through the theme-root tokens, so a
-  // palette change (the OS, or a contributed theme) reaches the surface without
-  // any component state to update. The design's field-picker dots were removed
-  // for exactly this reason.
+  // gradient, the glass and the ink all resolve through the theme-root tokens,
+  // so a palette change reaches the surface with no component involvement.
   for (const file of [loginTsx, brandPane]) {
     assert.doesNotMatch(file, /--ds-login-[a-z0-9-]+["']?\s*:/);
     assert.doesNotMatch(file, /#[0-9a-f]{3,8}\b/i);
     assert.doesNotMatch(file, /MutationObserver/);
   }
   assert.doesNotMatch(loginTsx, /style=\{/, "the surface sets no inline style");
-  // The field itself is a gradient over those tokens.
-  assert.match(loginCss, /background: linear-gradient\(\n\s*45deg,\n\s*var\(--ds-login-aurora-1\)/);
+  assert.match(rule(".login-screen"), /background: var\(--ds-login-surface\);/);
+  assert.match(rule(".login-pane-brand"), /background: var\(--ds-login-brand-pane\);/);
 });
 
-test("the palette tokens live on both theme roots; the glass formulas on :root", () => {
+test("every login token is defined on both theme roots", () => {
   const darkBlock = tokens.slice(
     tokens.indexOf(':root,\n:root[data-theme="dark"] {'),
     tokens.indexOf(':root[data-theme="light"] {'),
@@ -56,56 +60,70 @@ test("the palette tokens live on both theme roots; the glass formulas on :root",
     tokens.indexOf(':root[data-theme="light"] {'),
     tokens.indexOf("@theme {"),
   );
+  const dark = new Set(
+    [...darkBlock.matchAll(/(--ds-login-[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  );
+  const light = new Set(
+    [...lightBlock.matchAll(/(--ds-login-[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  );
+  assert.ok(dark.size >= 40, `expected a full token set, found ${dark.size}`);
+  assert.deepEqual([...light].sort(), [...dark].sort(), "the roots define the same tokens");
 
-  // The palette a theme may move: both roots must define each of these, or one
-  // palette would fall through to the other's values.
-  const palette = [
-    "--ds-login-aurora-1",
-    "--ds-login-aurora-2",
-    "--ds-login-aurora-3",
-    "--ds-login-ink",
-    "--ds-login-glass-tint",
-    "--ds-login-glass-edge",
-    "--ds-login-primary",
-    "--ds-login-danger",
-    "--ds-login-accent",
-  ];
-  for (const name of palette) {
-    assert.ok(darkBlock.includes(`${name}:`), `dark root defines ${name}`);
-    assert.ok(lightBlock.includes(`${name}:`), `light root defines ${name}`);
+  // Every token the stylesheet reaches for actually exists.
+  for (const name of [...loginCss.matchAll(/var\(\s*(--ds-login-[a-z0-9-]+)/g)].map((m) => m[1])) {
+    assert.ok(dark.has(name), `${name} is not defined on the dark root`);
   }
+});
 
-  // The derived layers that track the palette are formulas over the tokens
-  // above, so they are declared once on :root and resolve per element against
-  // whichever palette is active. Re-declaring them per root would freeze the
-  // math into literals.
-  for (const name of [
-    "--ds-login-glass-sheen",
-    "--ds-login-pane-brand",
-  ]) {
-    assert.ok(darkBlock.includes(`${name}:`), `:root defines the ${name} formula`);
-    assert.ok(!lightBlock.includes(`${name}:`), `the light root must not re-declare ${name}`);
-    const declaration = darkBlock.slice(darkBlock.indexOf(`${name}:`));
-    assert.match(
-      declaration.slice(0, declaration.indexOf(";") + 1),
-      /var\(--ds-login-/,
-      `${name} resolves through the palette tokens`,
-    );
-  }
+test("the surface is the window: no card chrome, no dead space", () => {
+  // The design leaves the login page no margin, radius, border or shadow; the
+  // OS frame is the only frame. A reintroduced card floats again at large
+  // window heights and reopens the band of bare background beneath it.
+  assert.match(rule(".login-screen"), /flex-direction: column;/);
+  assert.doesNotMatch(loginCss, /width: min\(/, "the window is not a fixed-size card");
+  const window = rule(".login-window");
+  assert.match(window, /flex: 1 1 auto;/);
+  assert.match(window, /min-height: 0;/);
+  assert.doesNotMatch(window, /border-radius|box-shadow|backdrop-filter/);
+});
 
-  // The specimen plates are white glass by design in both palettes — the design
-  // paints them white over either field — so they are neutral white-alpha,
-  // declared once, and must not be mistaken for a palette escape.
-  for (const name of ["--ds-login-spec-plate-bg", "--ds-login-spec-chip-bg"]) {
-    assert.ok(darkBlock.includes(`${name}:`), `:root defines ${name}`);
-    assert.ok(!lightBlock.includes(`${name}:`), `the light root must not re-declare ${name}`);
-    const declaration = darkBlock.slice(darkBlock.indexOf(`${name}:`));
-    assert.match(
-      declaration.slice(0, declaration.indexOf(";") + 1),
-      /rgb\(255 255 255 \//,
-      `${name} is neutral white glass`,
-    );
-  }
+test("the vertical chain reaches the window's bottom edge", () => {
+  assert.match(rule(".login-body"), /flex: 1 1 auto;/);
+  assert.match(rule(".login-body"), /min-height: 0;/);
+  assert.match(rule(".login-pane-form"), /flex: 1 1 auto;/);
+  assert.match(rule(".login-statusbar"), /height: 44px;/);
+  assert.match(rule(".login-statusbar"), /flex-shrink: 0;/);
+});
+
+test("the form scrolls, never the pane that holds the status bar", () => {
+  assert.match(rule(".login-form-scroll"), /overflow-y: auto;/);
+  assert.doesNotMatch(rule(".login-pane-form"), /overflow-y:/);
+});
+
+test("a short window drops the narrative, not the privacy footer", () => {
+  // Measured: the brand pane needs 710px of content under a 44px title bar, so
+  // everything fits from 754px. Below that the feature cards go, then the
+  // rhythms; the mark, the promise and the footer stay.
+  assert.match(
+    loginCss,
+    /@media \(max-height: 754px\) \{\s*\.login-feature-list \{ display: none; \}/,
+  );
+  assert.match(
+    loginCss,
+    /@media \(max-height: 520px\) \{\s*\.login-rhythm-list \{ display: none; \}/,
+  );
+  // The pane can always scroll to what is left, so nothing is unreachable.
+  assert.match(rule(".login-pane-brand"), /overflow-y: auto;/);
+});
+
+test("the feature card stacks the title over the description", () => {
+  // Both lines are spans in the component, so an inline display puts the
+  // description back on the title's line and only wraps when the copy happens
+  // to be long. The design stacks them in every language.
+  assert.match(rule(".login-feature-title"), /display: block;/);
+  assert.match(rule(".login-feature-desc"), /display: block;/);
+  assert.match(rule(".login-feature-desc"), /text-overflow: ellipsis;/);
+  assert.match(rule(".login-feature-copy"), /min-width: 0;/);
 });
 
 test("the stylesheet paints only through tokens", () => {
@@ -113,15 +131,13 @@ test("the stylesheet paints only through tokens", () => {
   assert.doesNotMatch(loginCss, /var\(\s*--gray-/);
   assert.doesNotMatch(loginCss, /var\(\s*--accent-/);
   assert.doesNotMatch(loginCss, /var\(\s*--color-/);
-  // Every colour declaration resolves through a variable.
   for (const line of loginCss.split("\n")) {
-    const declaration = line.match(/^\s*(color|background|background-color|background-image|border-color)\s*:\s*([^;]+);/);
+    const declaration = line.match(
+      /^\s*(color|background|background-color|background-image|border-color)\s*:\s*([^;]+);/,
+    );
     if (!declaration) continue;
     const value = declaration[2];
-    // A data-URI or url() is an image, not a palette colour; the grain overlay
-    // carries no colour of its own (its rect is opacity-only).
     if (value.includes("var(") || value.startsWith("url(")) continue;
-    // Keywords carry no palette: `none`, `transparent`, and the inherit family.
     if (/^(?:none|transparent|inherit|initial|unset|currentcolor)$/i.test(value.trim())) continue;
     assert.fail(`login.css paints a literal: ${line.trim()}`);
   }
@@ -142,44 +158,13 @@ test("the stylesheet is imported in the cascade, before the responsive tail", ()
   assert.ok(loginIndex < responsiveIndex, "the responsive tail still wins the cascade");
 });
 
-test("reduced motion silences the surface's animation", () => {
-  assert.match(loginCss, /@media \(prefers-reduced-motion: reduce\)/);
-});
-
-/**
- * The surface is the window, so its column has to hand out every pixel it is
- * given. A missing `flex-grow` anywhere in the chain leaves the status bar
- * floating mid-window with bare gradient beneath it, which no colour or type
- * check can see.
- */
-test("the vertical chain reaches the window's bottom edge", () => {
-  const rule = (selector) => {
-    const start = loginCss.indexOf(`\n${selector} {`);
-    assert.ok(start >= 0, `${selector} is styled`);
-    return loginCss.slice(start, loginCss.indexOf("\n}", start));
-  };
-  // The screen column: title bar, then the panes, which take the rest.
-  assert.match(rule(".login-screen"), /flex-direction: column;/);
-  assert.match(rule(".login-window"), /flex: 1 1 auto;/);
-  assert.match(rule(".login-body"), /flex: 1 1 auto;/);
-  assert.match(rule(".login-body"), /min-height: 0;/);
-  // Each pane fills the body, and the form's own column keeps its footer.
-  assert.match(rule(".login-pane-form"), /flex: 1 1 auto;/);
-  assert.match(rule(".login-statusbar"), /height: 44px;/);
-});
-
-test("the form scrolls, never the pane that holds the status bar", () => {
-  // Scrolling the pane would carry the status bar off the bottom edge.
-  assert.match(loginCss, /\.login-form-wrap \{[\s\S]*?overflow-y: auto;[\s\S]*?\}/);
-  const paneForm = loginCss.slice(
-    loginCss.indexOf(".login-pane-form {"),
-    loginCss.indexOf("\n}", loginCss.indexOf(".login-pane-form {")),
-  );
-  assert.doesNotMatch(paneForm, /overflow-y:/);
-});
-
-test("a short window drops the decorative stack, not the terms footer", () => {
-  // The brand pane clips its glows, so below a point the stack has to go: the
-  // alternative is the terms footer being cut off, which is content.
-  assert.match(loginCss, /@media \(max-height: 700px\) \{\s*\.login-specimen \{ display: none; \}/);
+test("reduced motion silences the surface and leaves the result visible", () => {
+  const block = loginCss.slice(loginCss.indexOf("@media (prefers-reduced-motion: reduce)"));
+  assert.ok(block.length > 0, "a reduced-motion block exists");
+  for (const selector of [".login-window", ".login-eq-bar", ".login-progress-bar", ".login-success-check"]) {
+    assert.ok(block.includes(selector), `${selector} is silenced under reduced motion`);
+  }
+  // A drawn tick and a grown bar must show their end state, not stay hidden.
+  assert.match(block, /\.login-success-check \{ stroke-dashoffset: 0; \}/);
+  assert.match(block, /\.login-progress-bar \{ transform: scaleX\(1\); \}/);
 });

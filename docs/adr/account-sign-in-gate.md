@@ -77,29 +77,46 @@ A failed restore distinguishes a *verdict* on the credential (`SESSION_EXPIRED`,
 (anything else — keep the record, close the gate for this launch). Clearing on a
 transient outage would cost the user a passwordless return for nothing.
 
-## 4. The sign-in surface follows the resolved system theme
+## 4. The sign-in surface is the window, and it follows the resolved theme
 
-The surface is a port of the approved design (two-pane glass window over an
-aurora field). Its palette follows the app's resolved theme: light paints the
-design's "sunlight" field, dark its "night plum" field. First paint resolves
-from `prefers-color-scheme` in `main.tsx` rather than a hardcoded palette, and a
-`MutationObserver` on `data-theme` re-resolves the field when the OS appearance
-changes while the gate is open.
+The surface is a port of the approved design: a full-bleed two-pane window — the
+brand narrative on the left, the credential form on the right — with no outer
+card, margin, radius, border or drop shadow. The OS frame is the only frame it
+has, so the gate reads as the application rather than as a dialog parked on it.
 
-All paint resolves through `--ds-login-*` tokens. The palette a theme may move
-(base, aurora stops, ink, tint, edge, primary, danger) is defined on both theme
-roots in `tokens.css`; the derived glass layers are formulas over those tokens,
-declared once on `:root`, so they follow whichever palette is active without
-re-declaration. `scripts/check-style-tokens.mjs` rejects literal colours and
-typography in the surface, and `test/login-screen-theme.test.mjs` pins the
-token placement.
+All paint resolves through `--ds-login-*` tokens, defined on both theme roots in
+`tokens.css`: light paints the design's lavender-to-blush brand pane, dark the
+same pane in violet glass. The component carries no palette of its own and sets
+no inline style, so the resolved app theme is the only input, and first paint
+resolves from `prefers-color-scheme` in `main.tsx` rather than a hardcoded
+palette. `scripts/check-style-tokens.mjs` rejects literal colours and typography
+on the surface, and `test/login-screen-theme.test.mjs` pins the token placement,
+the full-bleed contract, and the flex chain that keeps the status bar on the
+window's bottom edge.
 
 Two design elements became real desktop behaviour: the drawn traffic lights and
-minimize button drive `api.windowControl`, and on macOS the native traffic
+the minimize button drive `api.windowControl`, and on macOS the native traffic
 lights are hidden while the gate is closed (`applyAccountWindowChrome`) so the
-two do not double up. The aurora field dots remain decorative pickers for the
-light field; a hand-picked field wins over the palette default until the next
-launch.
+two do not double up. The design's locally drawn captcha canvas is replaced by
+the service's own single-use PNG, because the ticket has to be the one the
+`rememberLogin` route will accept.
+
+The challenge field is part of the form, not of the response. Gating it on a
+fetched challenge makes it vanish whenever the account service is down at the
+moment the gate mounts — the app starting before the backend is the ordinary
+case — and leaves the user holding a form that is silently missing a required
+input. So the field renders unless the service answers `captchaEnabled: false`,
+carries its own loading and retry states, and sign-in refuses to submit until a
+challenge is actually in hand. Reading "not fetched" as "not required" would let
+an unreachable service downgrade the sign-in to a request the backend rejects.
+
+Two design affordances were dropped, and one is disclosed by height instead. The
+aurora field and its colour dots are gone: a hand-picked field competes with the
+resolved theme. The "minimized" and "closed" placeholder states are gone because
+the OS owns them. The brand pane's narrative then has to survive a resizable
+window: it needs 710px of content under the 44px title bar, so below 754px the
+feature cards go and below 520px the working rhythms go, while the mark, the
+promise and the privacy footer always stay.
 
 ## Not included, deliberately
 

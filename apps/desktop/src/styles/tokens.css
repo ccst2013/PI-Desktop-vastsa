@@ -218,87 +218,66 @@
   --font-scale: 1;
 
   /*
-    Sign-in surface (login.css), dark palette: the design's "night plum" aurora
-    field. Defined here, in the theme root, because these are exactly the values
-    a contributed theme must be able to move; login.css only consumes them.
+    Sign-in surface (login.css), dark palette. The approved design is a light
+    glass window; this is the same window read in the dark — the lavender/blush
+    pane tints deepened to violet/plum, the white glass to white-alpha, and the
+    action violet lifted for contrast on a dark plate.
   */
-  --ds-login-aurora-1: #3b1f5e;
-  --ds-login-aurora-2: #6d3fd4;
-  --ds-login-aurora-3: #1f2f6b;
-  --ds-login-ink: #f2ecfb;
-  --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 62%, transparent);
+  --ds-login-surface: #17131f;
+  --ds-login-ink: #ece8f7;
+  --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 66%, transparent);
   --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 44%, transparent);
-  --ds-login-glass-tint: 0.14;
-  --ds-login-glass-edge: 0.28;
-  --ds-login-primary: #8b64e8;
-  --ds-login-primary-ink: #ffffff;
+  --ds-login-ink-hairline: rgb(255 255 255 / 0.08);
+  --ds-login-cta: #8b6cff;
+  --ds-login-cta-soft: #a791ff;
+  --ds-login-cta-ink: #ffffff;
   --ds-login-danger: #ff6b6b;
-  --ds-login-accent: #f06595;
+  --ds-login-danger-ink: #ffc9c9;
+  --ds-login-service-ok: #28c840;
   --ds-login-traffic-close: #ff5f57;
   --ds-login-traffic-minimize: #febc2e;
   --ds-login-traffic-zoom: #28c840;
-  --ds-login-service-ok: #28c840;
-  --ds-login-service-down: #ff6b6b;
-  /*
-    Derived glass layers for the sign-in surface. White-alpha over the aurora
-    field, scaled by the theme's tint/edge so dark and light read as the same
-    material. Defined once here: the light root overrides only the base values
-    above, and custom-property substitution resolves the `var()` references per
-    element, so these follow whichever palette is active.
-  */
-  --ds-login-glass-sheen: rgb(255 255 255 / calc(var(--ds-login-glass-edge) * 0.85));
-  --ds-login-glass-sheen-top: rgb(255 255 255 / calc(var(--ds-login-glass-edge) + 0.4));
-  --ds-login-glass-border: rgb(255 255 255 / calc(var(--ds-login-glass-edge) * 0.8));
-  --ds-login-glass-border-strong: rgb(255 255 255 / calc(var(--ds-login-glass-edge) + 0.25));
-  --ds-login-glass-border-input: rgb(255 255 255 / calc(var(--ds-login-glass-edge) + 0.1));
-  --ds-login-glass-fill: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.12));
-  --ds-login-glass-fill-hover: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.2));
-  --ds-login-glass-fill-on: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.38));
-  --ds-login-glass-fill-input: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.12));
-  --ds-login-glass-fill-input-focus: rgb(255 255 255 / calc(var(--ds-login-glass-tint) + 0.3));
-  --ds-login-titlebar-border: rgb(255 255 255 / 0.35);
-  --ds-login-titlebar-bg: rgb(255 255 255 / 0.12);
-  --ds-login-pane-brand: linear-gradient(
-    160deg,
-    color-mix(in oklab, var(--ds-login-aurora-1) 30%, transparent),
-    color-mix(in oklab, var(--ds-login-aurora-2) 22%, transparent) 46%,
-    color-mix(in oklab, var(--ds-login-aurora-3) 32%, transparent)
-  );
-  --ds-login-pane-form-bg: rgb(255 255 255 / 0.18);
-  --ds-login-brand-glow: rgb(255 255 255 / 0.22);
-  --ds-login-spec-plate-bg: linear-gradient(
-    120deg,
-    rgb(255 255 255 / 0.6),
-    rgb(255 255 255 / 0.2) 58%,
-    rgb(255 255 255 / 0.38)
-  );
-  --ds-login-spec-plate-border: rgb(255 255 255 / 0.65);
-  --ds-login-spec-shadow: rgb(59 17 110 / 0.6);
-  --ds-login-spec-sheen: rgb(255 255 255 / 0.6);
-  --ds-login-spec-chip-bg: rgb(255 255 255 / 0.5);
-  --ds-login-spec-chip-border: rgb(255 255 255 / 0.7);
-  --ds-login-spec-tick-off: rgb(255 255 255 / 0.45);
-  --ds-login-spec-tick-on: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 0.98),
-    rgb(255 255 255 / 0.6)
-  );
-  --ds-login-spec-tick-glow: rgb(255 255 255 / 0.7);
-  --ds-login-field-ring: rgb(109 63 212 / 0.22);
-  --ds-login-field-error-border: color-mix(in oklab, var(--ds-login-danger) 65%, transparent);
-  --ds-login-service-error-bg: color-mix(in oklab, var(--ds-login-danger) 10%, transparent);
-  --ds-login-switch-off: rgb(255 255 255 / 0.35);
-  --ds-login-switch-knob: #ffffff;
-  --ds-login-submit-shadow: color-mix(in oklab, var(--ds-login-primary) 70%, transparent);
-  --ds-login-spinner-track: rgb(255 255 255 / 0.4);
-  --ds-login-statusbar-border: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
-  --ds-login-statusbar-bg: rgb(255 255 255 / 0.1);
-  --ds-login-keycap-border: rgb(255 255 255 / 0.6);
-  --ds-login-keycap-bg: rgb(255 255 255 / 0.4);
-  --ds-login-toast-bg: color-mix(in oklab, var(--ds-login-ink) 78%, transparent);
-  --ds-login-toast-shadow: rgb(20 6 40 / 0.7);
-  --ds-login-toast-ink: #ffffff;
   --ds-login-traffic-shade: rgb(0 0 0 / 0.25);
+
+  --ds-login-bar-bg: rgb(255 255 255 / 0.05);
+  --ds-login-input-bg: rgb(255 255 255 / 0.07);
+  --ds-login-input-bg-focus: rgb(255 255 255 / 0.12);
+  --ds-login-input-border: rgb(255 255 255 / 0.12);
+  --ds-login-input-border-focus: color-mix(in oklab, var(--ds-login-cta) 60%, transparent);
+  --ds-login-chip-bg: rgb(255 255 255 / 0.09);
+  --ds-login-chip-border: rgb(255 255 255 / 0.14);
+  --ds-login-card-bg: rgb(255 255 255 / 0.06);
+  --ds-login-card-bg-hover: rgb(255 255 255 / 0.1);
+  --ds-login-card-border: rgb(255 255 255 / 0.1);
+  --ds-login-card-border-hover: rgb(255 255 255 / 0.16);
+  --ds-login-brand-pane: linear-gradient(
+    160deg,
+    rgb(58 46 92 / 0.72) 0%,
+    rgb(74 42 66 / 0.6) 100%
+  );
+  --ds-login-brand-glow: color-mix(in oklab, var(--ds-login-cta) 16%, transparent);
+  --ds-login-track: rgb(255 255 255 / 0.1);
+  --ds-login-switch-off: rgb(255 255 255 / 0.16);
+  --ds-login-switch-knob: #ffffff;
+  --ds-login-toast-bg: rgb(30 24 44 / 0.94);
+  --ds-login-toast-ink: var(--ds-login-ink);
+  --ds-login-toast-border: rgb(255 255 255 / 0.14);
+  --ds-login-error-banner-bg: color-mix(in oklab, var(--ds-login-danger) 12%, transparent);
+  --ds-login-focus-ring: color-mix(in oklab, var(--ds-login-cta) 45%, transparent);
+  --ds-login-field-error-bg: color-mix(in oklab, var(--ds-login-danger) 6%, transparent);
+  --ds-login-captcha-bg: rgb(255 255 255 / 0.9);
+  --ds-login-captcha-overlay: rgb(24 19 31 / 0.72);
+  --ds-login-captcha-overlay-ink: #ffffff;
+  --ds-login-toast-shadow: rgb(8 3 18 / 0.55);
+  --ds-login-cta-wash: color-mix(in oklab, var(--ds-login-cta) 18%, transparent);
+  --ds-login-cta-ring: color-mix(in oklab, var(--ds-login-cta) 32%, transparent);
+  --ds-login-cta-bar: color-mix(in oklab, var(--ds-login-cta) 55%, transparent);
+  --ds-login-cta-shadow: color-mix(in oklab, var(--ds-login-cta) 55%, transparent);
+  --ds-login-cta-disabled: color-mix(in oklab, var(--ds-login-cta) 70%, transparent);
+  --ds-login-danger-border: color-mix(in oklab, var(--ds-login-danger) 60%, transparent);
+  --ds-login-danger-ring: color-mix(in oklab, var(--ds-login-danger) 25%, transparent);
+  --ds-login-hover-wash: rgb(255 255 255 / 0.05);
+  --ds-login-spinner-track: rgb(255 255 255 / 0.4);
 }
 
 :root[data-theme="light"] {
@@ -379,24 +358,66 @@
   --ds-shadow-composer: 0 3px 7.5px #0000000a, 0 0 20px #0000000d;
   --ds-bg-elevated-primary: color-mix(in oklab, #ffffff 70%, transparent);
 
-  /* Sign-in surface, light palette: the design's "sunlight" aurora field. */
-  --ds-login-aurora-1: #ee5a86;
-  --ds-login-aurora-2: #a05cc4;
-  --ds-login-aurora-3: #4a6ce2;
-  --ds-login-ink: #2b1244;
-  --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 60%, transparent);
-  --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 45%, transparent);
-  --ds-login-glass-tint: 0.3;
-  --ds-login-glass-edge: 0.45;
-  --ds-login-primary: #6d3fd4;
-  --ds-login-primary-ink: #ffffff;
-  --ds-login-danger: #e03131;
-  --ds-login-accent: #c2255c;
+  /*
+    Sign-in surface (login.css), light palette — the approved design read
+    directly: a white glass window, a lavender-to-blush brand pane, ink #241b3e
+    and the action violet #5b3df0.
+  */
+  --ds-login-surface: #fafafb;
+  --ds-login-ink: #241b3e;
+  --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 68%, transparent);
+  --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 48%, transparent);
+  --ds-login-ink-hairline: color-mix(in oklab, var(--ds-login-ink) 8%, transparent);
+  --ds-login-cta: #5b3df0;
+  --ds-login-cta-soft: #7c5cff;
+  --ds-login-cta-ink: #ffffff;
+  --ds-login-danger: #e5484d;
+  --ds-login-danger-ink: #c22a3a;
+  --ds-login-service-ok: #16a34a;
   --ds-login-traffic-close: #ff5f57;
   --ds-login-traffic-minimize: #febc2e;
   --ds-login-traffic-zoom: #28c840;
-  --ds-login-service-ok: #28c840;
-  --ds-login-service-down: #e03131;
+  --ds-login-traffic-shade: rgb(0 0 0 / 0.25);
+
+  --ds-login-bar-bg: rgb(255 255 255 / 0.55);
+  --ds-login-input-bg: rgb(255 255 255 / 0.7);
+  --ds-login-input-bg-focus: #ffffff;
+  --ds-login-input-border: color-mix(in oklab, var(--ds-login-ink) 12%, transparent);
+  --ds-login-input-border-focus: color-mix(in oklab, var(--ds-login-cta) 50%, transparent);
+  --ds-login-chip-bg: rgb(255 255 255 / 0.75);
+  --ds-login-chip-border: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
+  --ds-login-card-bg: rgb(255 255 255 / 0.65);
+  --ds-login-card-bg-hover: rgb(255 255 255 / 0.85);
+  --ds-login-card-border: color-mix(in oklab, var(--ds-login-ink) 8%, transparent);
+  --ds-login-card-border-hover: color-mix(in oklab, var(--ds-login-ink) 15%, transparent);
+  --ds-login-brand-pane: linear-gradient(
+    160deg,
+    rgb(245 241 255 / 0.72) 0%,
+    rgb(253 238 246 / 0.6) 100%
+  );
+  --ds-login-brand-glow: color-mix(in oklab, var(--ds-login-cta) 10%, transparent);
+  --ds-login-track: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
+  --ds-login-switch-off: color-mix(in oklab, var(--ds-login-ink) 15%, transparent);
+  --ds-login-switch-knob: #ffffff;
+  --ds-login-toast-bg: rgb(255 255 255 / 0.9);
+  --ds-login-toast-ink: var(--ds-login-ink);
+  --ds-login-toast-border: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
+  --ds-login-error-banner-bg: color-mix(in oklab, var(--ds-login-danger) 6%, transparent);
+  --ds-login-focus-ring: color-mix(in oklab, var(--ds-login-cta) 25%, transparent);
+  --ds-login-field-error-bg: color-mix(in oklab, var(--ds-login-danger) 5%, transparent);
+  --ds-login-captcha-bg: rgb(255 255 255 / 0.82);
+  --ds-login-captcha-overlay: rgb(255 255 255 / 0.75);
+  --ds-login-captcha-overlay-ink: var(--ds-login-ink);
+  --ds-login-toast-shadow: color-mix(in oklab, var(--ds-login-ink) 35%, transparent);
+  --ds-login-cta-wash: color-mix(in oklab, var(--ds-login-cta) 10%, transparent);
+  --ds-login-cta-ring: color-mix(in oklab, var(--ds-login-cta) 20%, transparent);
+  --ds-login-cta-bar: color-mix(in oklab, var(--ds-login-cta) 45%, transparent);
+  --ds-login-cta-shadow: color-mix(in oklab, var(--ds-login-cta) 30%, transparent);
+  --ds-login-cta-disabled: color-mix(in oklab, var(--ds-login-cta) 70%, transparent);
+  --ds-login-danger-border: color-mix(in oklab, var(--ds-login-danger) 60%, transparent);
+  --ds-login-danger-ring: color-mix(in oklab, var(--ds-login-danger) 25%, transparent);
+  --ds-login-hover-wash: color-mix(in oklab, var(--ds-login-ink) 5%, transparent);
+  --ds-login-spinner-track: rgb(255 255 255 / 0.4);
 }
 
 @theme {
@@ -470,12 +491,17 @@
   --text-lg-plus: calc(18px * var(--font-scale));
   --text-xl: calc(20px * var(--font-scale));
   --text-2xl: calc(28px * var(--font-scale));
+  /* Two steps the sign-in surface's display type needs; every other consumer
+     stops at --text-2xl. */
+  --text-2xl-plus: calc(24px * var(--font-scale));
+  --text-3xl: calc(34px * var(--font-scale));
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-medium-plus: 520;
   --font-weight-strong: 560;
   --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
   --leading-none: 1;
   --leading-heading: 1.15;
@@ -494,4 +520,5 @@
   --tracking-tight: -0.02em;
   --tracking-normal: 0em;
   --tracking-wide: 0.02em;
+  --tracking-widest: 0.18em;
 }

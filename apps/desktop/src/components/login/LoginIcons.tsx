@@ -1,123 +1,57 @@
 /**
- * The sign-in surface's linear icon set, ported from the approved design.
+ * The sign-in surface's icon set, ported from the approved design.
  *
- * Stroke-only glyphs at a 24-unit box and a 1.7 stroke, exactly as the design
- * drew them; the app's own `components/icons` set is a different visual family
- * and mixing the two on one surface would read as two products.
+ * Single-path stroke glyphs on a 24-unit box with a 1.8 stroke, exactly as the
+ * design drew them: each entry is one `d` whose sub-paths are separated by `M`,
+ * which keeps every glyph the same weight and join style. The app's own
+ * `components/icons` set is a different visual family, and mixing the two on one
+ * surface would read as two products.
  */
 import type { SVGProps } from "react";
 
 export type LoginIconName =
-  | "layers"
   | "lock"
   | "user"
-  | "shield"
   | "eye"
   | "eyeOff"
-  | "check"
-  | "warn"
+  | "key"
+  | "refresh"
   | "arrow"
   | "sliders"
   | "command"
   | "spark"
+  | "layers"
   | "help"
   | "minus"
-  | "refresh"
-  | "key";
+  | "panels"
+  | "nodes"
+  | "plug"
+  | "check"
+  | "x";
 
-const PATHS: Record<LoginIconName, React.ReactNode> = {
-  layers: (
-    <>
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </>
-  ),
-  lock: (
-    <>
-      <rect x="4" y="11" width="16" height="10" rx="2.5" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </>
-  ),
-  user: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
-    </>
-  ),
-  shield: (
-    <>
-      <path d="M12 2l8 3.5v6c0 5-3.4 8.6-8 10.5-4.6-1.9-8-5.5-8-10.5v-6z" />
-      <polyline points="8.5 11.5 11 14 15.5 9.5" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" />
-      <circle cx="12" cy="12" r="3" />
-    </>
-  ),
-  eyeOff: (
-    <>
-      <path d="M4 4l16 16" />
-      <path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3 3.9M6.6 6.6C3.7 8.6 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.4-1" />
-    </>
-  ),
-  check: <polyline points="20 6 9 17 4 12" />,
-  warn: (
-    <>
-      <path d="M12 3l10 18H2z" />
-      <line x1="12" y1="10" x2="12" y2="14.5" />
-      <line x1="12" y1="17.5" x2="12.01" y2="17.5" />
-    </>
-  ),
-  arrow: (
-    <>
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <polyline points="13 5 20 12 13 19" />
-    </>
-  ),
-  sliders: (
-    <>
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-      <circle cx="9" cy="7" r="2" />
-      <circle cx="15" cy="17" r="2" />
-    </>
-  ),
-  command: (
-    <path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z" />
-  ),
-  spark: (
-    <>
-      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
-      <path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
-    </>
-  ),
-  help: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </>
-  ),
-  minus: <line x1="6" y1="12" x2="18" y2="12" />,
-  refresh: (
-    <>
-      <polyline points="20.5 7 20.5 12 15.5 12" />
-      <polyline points="3.5 17 3.5 12 8.5 12" />
-      <path d="M20.2 12A8.2 8.2 0 0 0 6.3 6.6L3.5 9" />
-      <path d="M3.8 12a8.2 8.2 0 0 0 13.9 5.4l2.8-2.4" />
-    </>
-  ),
-  key: (
-    <>
-      <circle cx="8" cy="15" r="4" />
-      <path d="M10.8 12.2L20 3" />
-      <path d="M17 6l2.5 2.5" />
-      <path d="M14.5 8.5L17 11" />
-    </>
-  ),
+const PATHS: Record<LoginIconName, string> = {
+  lock: "M7 11V8a5 5 0 0 1 10 0v3 M5 11h14v10H5z",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5",
+  eye: "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z M12 12m-2.5 0a2.5 2.5 0 1 0 5 0 2.5 2.5 0 1 0-5 0",
+  eyeOff:
+    "M4 4l16 16 M9.9 5.2A10.6 10.6 0 0 1 12 5c6.5 0 10 6 10 6a17 17 0 0 1-2.7 3.4 M6.6 6.6A16.6 16.6 0 0 0 2 11s3.5 6 10 6c1.4 0 2.7-.3 3.8-.7 M10.2 10.3a2.5 2.5 0 0 0 3.5 3.5",
+  key: "M14 10a4 4 0 1 0-3.6 4L12 15.5V18h2.5v2H17v-3.5L20.5 13 14.4 6.9A4 4 0 0 0 14 10z M16.5 9.5h.01",
+  refresh: "M20 11a8 8 0 1 0-2.3 6.3 M20 5v6h-6",
+  arrow: "M4 12h15 M13 6l6 6-6 6",
+  sliders: "M5 7h9 M18 7h1 M5 12h3 M12 12h7 M5 17h9 M18 17h1 M16 5v4 M10 10v4 M16 15v4",
+  command:
+    "M9 9V6a3 3 0 1 0-3 3h3z M15 9V6a3 3 0 1 1 3 3h-3z M9 15v3a3 3 0 1 1-3-3h3z M15 15v3a3 3 0 1 0 3-3h-3z M9 9h6v6H9z",
+  spark:
+    "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z M18.5 16.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z",
+  layers: "M12 3l9 5-9 5-9-5 9-5z M3 13l9 5 9-5",
+  help: "M12 12m-9 0a9 9 0 1 0 18 0 9 9 0 1 0-18 0 M9.6 9.2a2.5 2.5 0 1 1 3.4 2.6c-.8.4-1 1-1 1.8 M12 17h.01",
+  minus: "M6 12h12",
+  panels: "M4 5h16v14H4z M9.5 5v14 M12.5 9.5l2 2-2 2 M17 9.5h1.5 M17 13.5h1.5",
+  nodes:
+    "M14 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z M8 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0z M20 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0z M12 7v3 M12 10l-4.5 5 M12 10l4.5 5",
+  plug: "M9 3v5 M15 3v5 M7 8h10v3a5 5 0 0 1-10 0z M12 16v5",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  x: "M6 6l12 12 M18 6L6 18",
 };
 
 export function LoginIcon({
@@ -130,7 +64,7 @@ export function LoginIcon({
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.7}
+      strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
       width={size}
@@ -139,7 +73,29 @@ export function LoginIcon({
       aria-hidden="true"
       {...rest}
     >
-      {PATHS[name]}
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}
+
+/**
+ * The success mark. The design draws the tick in from a hidden dash offset,
+ * which needs the path addressable from the stylesheet rather than folded into
+ * the generic icon helper.
+ */
+export function LoginCheckMark() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="login-success-check"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={PATHS.check} />
     </svg>
   );
 }

@@ -1,27 +1,25 @@
 /*
   Sign-in screen — the outermost gate shown before the app shell.
 
-  The surface is a 1:1 port of the approved design (the two-pane glass window
-  over an aurora field). Two adaptations make it a desktop window rather than a
-  page mock:
+  A 1:1 port of the approved design: a light glass window floating on a quiet
+  plate, a lavender-to-blush brand pane on the left, and the credential form on
+  the right. Two things are real rather than simulated, because this is a desktop
+  window and not a page mock:
 
-  - The title bar and the aurora field are real drag regions
-    (`-webkit-app-region: drag`); every interactive element opts back out. The
-    design's "window inside the page" offset drag is replaced by the window
-    itself moving, which is what a user expects of an app.
-  - The drawn traffic lights are wired to the real window actions, and on macOS
-    the native pair is hidden while the gate is closed so the two do not double
-    up (main process, `applyAccountWindowChrome`).
+  - The drawn traffic lights drive the real window (close / minimize / zoom), and
+    the title bar is the window's drag region. The design's "minimized" and
+    "closed" placeholder states are therefore absent — the OS does that.
+  - The challenge is the account service's own single-use PNG, not a locally
+    drawn canvas.
 
-  Theme: the palette follows the app's resolved theme. Light paints the design's
-  "sunlight" field, dark its "night plum" field. Every colour below resolves
-  through a `--ds-login-*` token defined on both theme roots in tokens.css; the
-  style-token guard rejects a literal here, and a contributed theme moves the
-  surface by overriding those tokens.
-
+  Theme: every colour resolves through a `--ds-login-*` token defined on both
+  theme roots in tokens.css, so the surface follows the app's resolved theme —
+  the design read directly in light, the same window in violet glass in dark.
   Typography, radii, weights, leading and tracking come from the token scales
-  only, for the same reason.
+  only; the style-token guard rejects a literal.
 */
+
+/* ---------- the surface, which is the window ---------- */
 
 .login-screen {
   position: fixed;
@@ -30,43 +28,46 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* The field gradient is the window's own background: the surface is the
-     window, not a card floating in a backdrop. */
-  background: linear-gradient(
-    45deg,
-    var(--ds-login-aurora-1) 0%,
-    var(--ds-login-aurora-2) 48%,
-    var(--ds-login-aurora-3) 100%
-  );
+  background: var(--ds-login-surface);
   color: var(--ds-login-ink);
   font-family: var(--font-sans);
-  transition: background 0.6s ease;
+  user-select: none;
   -webkit-app-region: drag;
 }
 
-/* ---------- the window ---------- */
+/* ---------- the window's column ---------- */
 
-/* A column of title bar, panes and status bar over the field gradient. The
-   design's window frame is the OS window itself, so nothing here draws a
-   border, a radius or a drop shadow of its own. */
+/* The design leaves this surface no margin, radius, border or drop shadow: the
+   OS window frame is the only frame it has. */
 .login-window {
   position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  animation: login-win-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
   -webkit-app-region: no-drag;
 }
+
+/* A full-bleed window scales nothing in; only the opacity and a short lift. */
+@keyframes login-win-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- title bar ---------- */
 
 .login-titlebar {
   position: relative;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
+  gap: 12px;
   height: 44px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--ds-login-titlebar-border);
-  background: var(--ds-login-titlebar-bg);
-  user-select: none;
+  border-bottom: 1px solid var(--ds-login-ink-hairline);
+  background: var(--ds-login-bar-bg);
   -webkit-app-region: drag;
 }
 
@@ -78,52 +79,46 @@
 }
 
 .login-traffic-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 12px;
   height: 12px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-round);
-  box-shadow: inset 0 -1px 2px var(--ds-login-traffic-shade);
+  color: var(--ds-login-traffic-shade);
   cursor: pointer;
   transition: filter 0.15s ease;
 }
 
-.login-titlebar-controls:hover .login-traffic-dot {
-  filter: brightness(1.08) saturate(1.1);
-}
+.login-traffic-dot:hover { filter: brightness(1.1); }
 
 .login-traffic-close { background: var(--ds-login-traffic-close); }
 .login-traffic-minimize { background: var(--ds-login-traffic-minimize); }
 .login-traffic-zoom { background: var(--ds-login-traffic-zoom); }
 
 .login-titlebar-title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  font-size: var(--text-sm-plus);
+  font-size: var(--text-md);
   font-weight: var(--font-weight-medium);
   color: var(--ds-login-ink-soft);
 }
 
-.login-titlebar-title .login-icon {
-  color: var(--ds-login-ink-faint);
-}
-
 .login-titlebar-actions {
-  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   -webkit-app-region: no-drag;
 }
 
 .login-version {
-  margin-right: 4px;
   font-family: var(--font-mono);
-  font-size: var(--text-3xs);
+  font-size: var(--text-2xs);
   letter-spacing: var(--tracking-wide);
   color: var(--ds-login-ink-faint);
 }
@@ -134,96 +129,92 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border: 1px solid var(--ds-login-glass-border);
+  border: 1px solid var(--ds-login-chip-border);
   border-radius: var(--radius-xs);
-  background: var(--ds-login-glass-fill);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen);
+  background: var(--ds-login-chip-bg);
   color: var(--ds-login-ink-soft);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .login-titlebar-button:hover {
-  background: var(--ds-login-glass-fill-hover);
+  background: var(--ds-login-input-bg-focus);
   color: var(--ds-login-ink);
 }
 
-/* ---------- panes ---------- */
+/* ---------- body ---------- */
 
 .login-body {
   display: flex;
   flex: 1 1 auto;
-  /* The panes column must claim the height the title bar leaves over, or the
-     status bar floats mid-window with bare gradient beneath it. */
   min-height: 0;
-  align-items: stretch;
 }
+
+/* ---------- brand pane ---------- */
 
 .login-pane-brand {
   position: relative;
   display: none;
   flex-direction: column;
-  gap: 28px;
-  width: 44%;
-  padding: 32px 36px;
-  overflow: hidden;
-  background: var(--ds-login-pane-brand);
-  border-right: 1px solid var(--ds-login-glass-border);
-  transition: background 0.6s ease;
+  justify-content: space-between;
+  width: 42%;
+  padding: 36px;
+  /* Clip the glow sideways, but never the footer: the design assumed a fixed
+     760px card, while this window is resizable down to 560px tall and the pane
+     needs 710px to show everything. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--ds-login-ink-hairline);
+  background: var(--ds-login-brand-pane);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .login-pane-brand { display: flex; }
 }
 
-/* The pane clips its glows, so a short window would cut the specimen stack
-   through the middle and push the terms footer out of sight. The stack is
-   decoration; the footer is not. */
-@media (max-height: 700px) {
-  .login-specimen { display: none; }
+/* Measured against the real window: the pane needs 710px (mark 72 + story 272
+   + cards 234 + footer 60 + padding 72) under a 44px title bar, so everything
+   fits from 754px of height. Below that the feature cards go first — they are
+   the narrative; the mark, the promise and the privacy footer are not. At the
+   560px minimum window the rhythms still fit; under 520px they go too. */
+@media (max-height: 754px) {
+  .login-feature-list { display: none; }
 }
 
-.login-brand-glow-a,
-.login-brand-glow-b {
+@media (max-height: 520px) {
+  .login-rhythm-list { display: none; }
+}
+
+.login-brand-glow {
   position: absolute;
-  border-radius: var(--radius-round);
-  filter: blur(48px);
-  background: var(--ds-login-brand-glow);
-}
-
-.login-brand-glow-a {
-  width: 256px;
-  height: 256px;
-  left: -64px;
-  top: -80px;
-}
-
-.login-brand-glow-b {
   width: 288px;
   height: 288px;
-  right: -80px;
-  bottom: 0;
+  left: -96px;
+  top: -96px;
+  border-radius: var(--radius-round);
+  filter: blur(64px);
+  background: var(--ds-login-brand-glow);
+  pointer-events: none;
 }
 
 .login-brand-mark {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .login-brand-mark-chip {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  background: var(--ds-login-glass-fill-on);
-  border: 1px solid var(--ds-login-glass-border-strong);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen-top);
-  color: var(--ds-login-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-login-chip-border);
+  background: var(--ds-login-chip-bg);
+  color: var(--ds-login-cta);
 }
 
 .login-brand-mark-name {
@@ -235,278 +226,243 @@
 
 .login-brand-mark-tag {
   font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  letter-spacing: var(--tracking-wide);
-  color: var(--ds-login-ink-soft);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-widest);
+  color: var(--ds-login-ink-faint);
 }
 
+.login-brand-story { position: relative; }
+
 .login-brand-heading {
-  margin-top: 40px;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--leading-tighter);
-  letter-spacing: var(--tracking-tight);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-wide);
   color: var(--ds-login-ink);
 }
 
 .login-brand-body {
-  margin-top: 14px;
-  max-width: 24ch;
-  font-size: var(--text-md);
-  line-height: var(--leading-prose);
+  margin-top: 16px;
+  max-width: 28ch;
+  font-size: var(--text-md-plus);
+  line-height: var(--leading-relaxed);
   color: var(--ds-login-ink-soft);
 }
 
-/* Glass specimen stack: three tilted plates that stand for the workspace. */
-/* The lede grows: on a tall window the slack lands between the copy and the
-   specimen, which is where the design leaves it, rather than splitting the pane
-   into three parts stranded at either edge. */
-.login-brand-lede {
-  flex: 1 1 auto;
+/* The three working rhythms: a monospace key and its plain-language use. */
+.login-rhythm-list {
   display: flex;
   flex-direction: column;
-  /* The slack a tall window leaves over is split above and below the copy, so
-     the mark does not sit stranded at the top with a gap under the paragraph. */
-  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
 }
 
-.login-specimen {
-  position: relative;
-  height: 186px;
-  flex-shrink: 0;
-  perspective: 900px;
-}
-
-.login-spec-plate {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 58px;
+.login-rhythm {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
-  padding: 0 16px;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  backdrop-filter: saturate(175%) blur(16px);
-  -webkit-backdrop-filter: saturate(175%) blur(16px);
-  background: var(--ds-login-spec-plate-bg);
-  border: 1px solid var(--ds-login-spec-plate-border);
-  box-shadow:
-    inset 0 1px 0 var(--ds-login-glass-sheen-top),
-    0 20px 44px -26px var(--ds-login-spec-shadow);
-  transition: transform 0.45s cubic-bezier(0.22, 0.9, 0.3, 1), border-color 0.3s ease;
-  will-change: transform, translate;
 }
 
-.login-spec-plate::before {
-  content: "";
-  position: absolute;
-  top: -20%;
-  bottom: -20%;
-  left: 0;
-  width: 42%;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    var(--ds-login-spec-sheen) 46%,
-    transparent 100%
-  );
-  transform: translateX(-170%) skewX(-14deg);
-  opacity: 0;
-  animation: login-spec-sheen 7.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.login-spec-chip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+.login-rhythm-key {
+  width: 48px;
   flex-shrink: 0;
-  border-radius: var(--radius-xs);
-  background: var(--ds-login-spec-chip-bg);
-  border: 1px solid var(--ds-login-spec-chip-border);
-  color: var(--ds-login-primary);
-  transition: transform 0.4s cubic-bezier(0.22, 0.9, 0.3, 1), background 0.3s ease;
-}
-
-.login-spec-plate:hover .login-spec-chip {
-  transform: rotate(-8deg) scale(1.1);
-}
-
-.login-spec-title {
-  font-size: var(--text-sm-plus);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--leading-tight);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
   color: var(--ds-login-ink);
 }
 
-.login-spec-text {
-  margin-top: 2px;
-  font-size: var(--text-2xs);
-  line-height: var(--leading-tight);
-  color: var(--ds-login-ink-soft);
+.login-rhythm-desc {
+  font-size: var(--text-sm-plus);
+  color: var(--ds-login-ink-faint);
 }
 
-.login-spec-ticks {
+/* Feature cards. */
+.login-feature-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-feature-card {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-login-card-border);
+  background: var(--ds-login-card-bg);
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.login-feature-card:hover {
+  transform: translateY(-2px);
+  background: var(--ds-login-card-bg-hover);
+  border-color: var(--ds-login-card-border-hover);
+}
+
+.login-feature-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-login-cta-ring);
+  background: var(--ds-login-cta-wash);
+  color: var(--ds-login-cta);
+}
+
+.login-feature-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.login-feature-title {
+  display: block;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--ds-login-ink);
+}
+
+/* Block, not inline: the design stacks the title over the description, and an
+   inline desc only wraps when the copy happens to be long. */
+.login-feature-desc {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
+  color: var(--ds-login-ink-faint);
+}
+
+/* Equalizer: four bars, each on its own period and offset. */
+.login-equalizer {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
   flex-shrink: 0;
 }
 
-.login-spec-tick {
+.login-eq-bar {
   width: 3px;
+  height: 100%;
   border-radius: var(--radius-full);
-  background: var(--ds-login-spec-tick-off);
+  background: var(--ds-login-cta-bar);
+  transform-origin: bottom;
+  animation: login-eq 0.9s ease-in-out infinite;
 }
 
-.login-spec-tick.on {
-  background: var(--ds-login-spec-tick-on);
-  box-shadow: 0 0 6px var(--ds-login-spec-tick-glow);
-  animation: login-tick-pulse 2.6s ease-in-out infinite;
+.login-eq-bar:nth-child(2) { animation-duration: 1.12s; animation-delay: 0.13s; }
+.login-eq-bar:nth-child(3) { animation-duration: 1.34s; animation-delay: 0.26s; }
+.login-eq-bar:nth-child(4) { animation-duration: 1.56s; animation-delay: 0.39s; }
+
+@keyframes login-eq {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
 }
 
-@keyframes login-tick-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
-@keyframes login-spec-sheen {
-  0%, 62% { transform: translateX(-170%) skewX(-14deg); opacity: 0; }
-  68% { opacity: 1; }
-  88%, 100% { transform: translateX(330%) skewX(-14deg); opacity: 0; }
-}
-
-/* Entry and float, kept on the independent `scale`/`translate` properties so
-   they never fight the plates' rotation. */
-.login-spec-1 {
-  transform: rotate(-2.4deg);
-  z-index: 3;
-  animation:
-    login-spec-in-1 0.75s 0.05s cubic-bezier(0.22, 0.9, 0.3, 1) both,
-    login-spec-bob-a 7.5s 0.9s ease-in-out infinite;
-}
-
-.login-spec-2 {
-  transform: rotate(1.6deg) translateY(64px) translateX(14px);
-  z-index: 2;
-  opacity: 0.92;
-  animation:
-    login-spec-in-2 0.75s 0.2s cubic-bezier(0.22, 0.9, 0.3, 1) both,
-    login-spec-bob-b 9s 1.05s ease-in-out infinite;
-}
-
-.login-spec-2::before { animation-delay: 2.5s; }
-
-.login-spec-3 {
-  transform: rotate(-1deg) translateY(128px) translateX(6px);
-  z-index: 1;
-  opacity: 0.82;
-  animation:
-    login-spec-in-3 0.75s 0.35s cubic-bezier(0.22, 0.9, 0.3, 1) both,
-    login-spec-bob-c 8.2s 1.2s ease-in-out infinite;
-}
-
-.login-spec-3::before { animation-delay: 5s; }
-
-@keyframes login-spec-in-1 { from { opacity: 0; scale: 0.9; } to { opacity: 1; scale: 1; } }
-@keyframes login-spec-in-2 { from { opacity: 0; scale: 0.9; } to { opacity: 0.92; scale: 1; } }
-@keyframes login-spec-in-3 { from { opacity: 0; scale: 0.9; } to { opacity: 0.82; scale: 1; } }
-@keyframes login-spec-bob-a { 0%, 100% { translate: 0 -3px; } 50% { translate: 0 5px; } }
-@keyframes login-spec-bob-b { 0%, 100% { translate: 0 4px; } 50% { translate: 0 -4px; } }
-@keyframes login-spec-bob-c { 0%, 100% { translate: 0 -2px; } 50% { translate: 0 6px; } }
-
-/* Brand pane footer: one row, the terms line and the clock at either end. */
+/* Brand pane footer. */
 .login-brand-footer {
   position: relative;
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  padding-top: 20px;
-  border-top: 1px solid var(--ds-login-glass-border);
+  padding-top: 16px;
+  border-top: 1px solid var(--ds-login-ink-hairline);
+}
+
+.login-brand-tagline {
+  font-size: var(--text-sm);
+  color: var(--ds-login-ink-faint);
+}
+
+.login-brand-tagline-dot {
+  margin: 0 6px;
+  color: var(--ds-login-ink-faint);
+  opacity: 0.6;
+}
+
+.login-terms-link {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ds-login-ink-soft);
+  text-decoration: underline;
+  text-decoration-color: var(--ds-login-ink-hairline);
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.login-terms-link:hover {
+  color: var(--ds-login-ink);
+  text-decoration-color: var(--ds-login-ink);
 }
 
 .login-clock {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  letter-spacing: var(--tracking-wide);
-  color: var(--ds-login-ink-faint);
-}
-
-.login-terms {
-  font-size: var(--text-2xs);
-  line-height: var(--leading-relaxed);
-  color: var(--ds-login-ink-faint);
-}
-
-.login-terms-link {
-  padding: 0 2px;
-  border: 0;
-  background: none;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
   color: var(--ds-login-ink-soft);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
 }
-
-.login-terms-link:hover { color: var(--ds-login-primary); }
 
 /* ---------- form pane ---------- */
 
 .login-pane-form {
   display: flex;
   flex: 1 1 auto;
-  min-width: 0;
   flex-direction: column;
-  background: var(--ds-login-pane-form-bg);
+  min-width: 0;
+  min-height: 0;
 }
 
-.login-form-wrap {
+/* The scroll owner is the content, never the pane: the status bar stays put. */
+.login-form-scroll {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  justify-content: center;
-  /* The scrollable part is the form, not the pane: at the minimum window height
-     the status bar must stay on the bottom edge rather than scroll away. */
   min-height: 0;
   overflow-y: auto;
-  padding: 32px 40px;
+  padding: 24px 32px;
 }
 
-.login-form-wrap.is-shaking { animation: login-shake 0.5s both; }
-.login-form-wrap.is-rising { animation: login-rise-in 0.4s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
-
-@keyframes login-rise-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes login-shake {
-  10%, 90% { transform: translateX(-2px); }
-  20%, 80% { transform: translateX(4px); }
-  30%, 50%, 70% { transform: translateX(-6px); }
-  40%, 60% { transform: translateX(6px); }
+@media (min-width: 640px) {
+  .login-form-scroll { padding: 24px 48px; }
 }
 
 .login-heading {
-  font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--leading-tight);
+  font-size: var(--text-2xl-plus);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
   color: var(--ds-login-ink);
 }
 
 .login-subheading {
-  margin-top: 4px;
-  font-size: var(--text-md);
+  margin-top: 6px;
+  font-size: var(--text-md-plus);
   color: var(--ds-login-ink-soft);
 }
 
 .login-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  margin: auto;
+}
+
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+
+.login-field-group {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -514,172 +470,218 @@
 }
 
 .login-field-label {
-  display: block;
-  margin-bottom: 6px;
   font-size: var(--text-md);
   font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wide);
   color: var(--ds-login-ink-soft);
 }
 
-.login-field {
+/* The icon sits inside the field's own box, so the input reserves room for it. */
+.login-input-wrap { position: relative; }
+
+.login-input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--ds-login-glass-fill-input);
-  border: 1px solid var(--ds-login-glass-border-input);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen-top);
-  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.25s ease;
-}
-
-.login-field:focus-within {
-  background: var(--ds-login-glass-fill-input-focus);
-  border-color: var(--ds-login-glass-border-strong);
-  box-shadow:
-    inset 0 1px 0 var(--ds-login-glass-sheen-top),
-    0 0 0 3px var(--ds-login-field-ring),
-    0 12px 32px -18px var(--ds-login-spec-shadow);
-}
-
-.login-field.has-error { border-color: var(--ds-login-field-error-border); }
-
-.login-field-icon {
-  flex-shrink: 0;
   color: var(--ds-login-ink-faint);
+  pointer-events: none;
 }
 
 .login-input {
   width: 100%;
-  border: 0;
-  background: none;
-  outline: none;
+  padding: 12px 14px 12px 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-login-input-border);
+  background: var(--ds-login-input-bg);
+  color: var(--ds-login-ink);
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  color: var(--ds-login-ink);
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-input::placeholder { color: var(--ds-login-ink-faint); }
 
+.login-input:focus {
+  background: var(--ds-login-input-bg-focus);
+  border-color: var(--ds-login-input-border-focus);
+  box-shadow: 0 0 0 3px var(--ds-login-focus-ring);
+}
+
+.login-input.has-suffix { padding-right: 44px; }
+.login-input.has-toggle { padding-right: 44px; }
+
+.login-input.is-error {
+  border-color: var(--ds-login-danger-border);
+  background: var(--ds-login-field-error-bg);
+}
+
+.login-input.is-error:focus {
+  border-color: var(--ds-login-danger);
+  box-shadow: 0 0 0 3px var(--ds-login-danger-ring);
+}
+
 .login-input.is-captcha {
+  padding-right: 48px;
   font-family: var(--font-mono);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+}
+
+.login-input-suffix {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-login-ink-faint);
+  pointer-events: none;
 }
 
 .login-password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
-  flex-shrink: 0;
-  padding: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 0;
+  border-radius: var(--radius-xs);
   background: none;
   color: var(--ds-login-ink-faint);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.login-password-toggle:hover { color: var(--ds-login-ink-soft); }
+.login-password-toggle:hover {
+  background: var(--ds-login-hover-wash);
+  color: var(--ds-login-ink);
+}
 
 .login-field-error {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
-  font-size: var(--text-xs);
-  color: var(--ds-login-danger);
+  font-size: var(--text-sm);
+  color: var(--ds-login-danger-ink);
 }
 
 .login-field-hint {
-  margin-top: 6px;
-  font-size: var(--text-2xs);
+  font-size: var(--text-sm);
   color: var(--ds-login-ink-faint);
 }
 
-/* A labelled field: the label, the glass pill, and its error line. */
-.login-field-block { display: block; }
-
-/* The "click the image to refresh" nudge appended to a repeated captcha fault. */
-.login-field-error-extra { opacity: 0.7; }
-
-.login-caps-warning {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: -8px;
-  font-size: var(--text-xs);
-  color: var(--ds-login-accent);
-}
-
-/* Service-level faults sit above the form so they cannot read as "your input
-   is wrong"; input faults sit beside the field they fault. */
-.login-service-error {
+/* A service-level fault sits above the fields: it is not about what was typed. */
+.login-error-banner {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 16px;
   padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--ds-login-service-error-bg);
-  border: 1px solid var(--ds-login-field-error-border);
-  color: var(--ds-login-danger);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-login-danger-border);
+  background: var(--ds-login-error-banner-bg);
+  color: var(--ds-login-danger-ink);
   font-size: var(--text-sm);
 }
 
-/* Challenge row. */
+/* ---------- challenge row ---------- */
+
 .login-captcha-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
 }
 
-.login-captcha-field { flex: 1 1 auto; min-width: 0; }
+.login-captcha-field { min-width: 0; flex: 1 1 auto; }
 
-.login-captcha-count {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--ds-login-ink-faint);
-}
-
-.login-captcha-image-button {
+.login-captcha {
   position: relative;
   display: block;
   flex-shrink: 0;
+  width: 132px;
+  height: 46px;
   padding: 0;
-  border: 0;
-  background: none;
-  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--ds-login-input-border);
+  border-radius: var(--radius-md);
+  background: var(--ds-login-captcha-bg);
   cursor: pointer;
+  transition: border-color 0.15s ease;
 }
+
+.login-captcha:hover { border-color: var(--ds-login-ink-faint); }
 
 .login-captcha-image {
   display: block;
-  width: 128px;
-  height: 42px;
-  border-radius: var(--radius-sm);
+  width: 132px;
+  height: 46px;
   object-fit: cover;
-  box-shadow:
-    inset 0 1px 0 var(--ds-login-glass-sheen-top),
-    0 6px 18px -12px var(--ds-login-spec-shadow);
-  transition: filter 0.2s ease, transform 0.2s ease;
 }
 
-.login-captcha-image-button:hover .login-captcha-image {
-  filter: brightness(1.05);
-  transform: translateY(-1px);
+/* The design reveals "another one" over the image on hover. */
+.login-captcha-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--ds-login-captcha-overlay);
+  color: var(--ds-login-captcha-overlay-ink);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wide);
+  opacity: 0;
+  backdrop-filter: saturate(1.2) blur(2px);
+  -webkit-backdrop-filter: saturate(1.2) blur(2px);
+  transition: opacity 0.15s ease;
+  pointer-events: none;
 }
 
-.login-captcha-image-button:active .login-captcha-image { transform: scale(0.97); }
+.login-captcha:hover .login-captcha-overlay,
+.login-captcha:focus-visible .login-captcha-overlay { opacity: 1; }
 
-.login-captcha-flip {
-  display: block;
-  animation: login-captcha-flip 0.34s cubic-bezier(0.22, 0.9, 0.3, 1) both;
-  transform-origin: center top;
+/* No challenge in hand. The box keeps the design's 132x46 plate and carries its
+   own state, so a slow or unreachable account service never reads as a form
+   that lost a field — the row is the retry. */
+.login-captcha.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes login-captcha-flip {
-  from { opacity: 0; transform: rotateX(38deg) scale(0.96); }
-  to { opacity: 1; transform: rotateX(0) scale(1); }
+.login-captcha-empty-text {
+  padding: 0 8px;
+  text-align: center;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+  color: var(--ds-login-ink-faint);
+}
+
+/* In flight: a sweep across the plate rather than a blank frame. */
+.login-captcha-skeleton {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    90deg,
+    var(--ds-login-captcha-bg) 0%,
+    var(--ds-login-hover-wash) 50%,
+    var(--ds-login-captcha-bg) 100%
+  );
+  background-size: 200% 100%;
+  animation: login-captcha-sweep 1.1s ease-in-out infinite;
+}
+
+@keyframes login-captcha-sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 .login-captcha-refresh {
@@ -687,83 +689,76 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 42px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--ds-login-glass-border-input);
-  background: var(--ds-login-glass-fill-input);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen-top);
+  width: 46px;
+  border: 1px solid var(--ds-login-chip-border);
+  border-radius: var(--radius-md);
+  background: var(--ds-login-chip-bg);
   color: var(--ds-login-ink-soft);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.18s ease;
+  transition: transform 0.3s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .login-captcha-refresh:hover {
-  color: var(--ds-login-primary);
-  background: var(--ds-login-glass-fill-hover);
+  transform: rotate(90deg);
+  background: var(--ds-login-input-bg-focus);
+  color: var(--ds-login-ink);
 }
 
-/* Remember / forgot row. */
-.login-remember-row {
+/* ---------- options row ---------- */
+
+.login-options-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: 20px;
 }
 
-.login-remember-label {
+.login-switch {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: pointer;
-  user-select: none;
 }
 
-.login-remember-switch {
+.login-switch-track {
   position: relative;
-  width: 38px;
-  height: 22px;
+  display: block;
+  width: 44px;
+  height: 24px;
   flex-shrink: 0;
   border-radius: var(--radius-full);
-  border: 1px solid var(--ds-login-glass-border-strong);
   background: var(--ds-login-switch-off);
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition: background 0.2s ease;
 }
 
-.login-remember-switch::after {
-  content: "";
+.login-switch[aria-checked="true"] .login-switch-track {
+  background: var(--ds-login-cta);
+}
+
+.login-switch-knob {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-round);
   background: var(--ds-login-switch-knob);
   box-shadow: 0 1px 2px var(--ds-login-traffic-shade);
-  transition: transform 0.18s cubic-bezier(0.22, 0.9, 0.3, 1);
+  transition: left 0.2s ease;
 }
 
-.login-remember-input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
+.login-switch[aria-checked="true"] .login-switch-knob { left: 22px; }
+
+.login-switch:focus-visible .login-switch-track {
+  box-shadow: 0 0 0 3px var(--ds-login-focus-ring);
 }
 
-.login-remember-input:checked + .login-remember-switch {
-  background: var(--ds-login-primary);
-  border-color: var(--ds-login-primary);
-}
-
-.login-remember-input:checked + .login-remember-switch::after {
-  transform: translateX(16px);
-}
-
-.login-remember-input:focus-visible + .login-remember-switch {
-  box-shadow: 0 0 0 3px var(--ds-login-field-ring);
-}
-
-.login-remember-text {
-  font-size: var(--text-md);
+.login-switch-label {
+  font-size: var(--text-md-plus);
+  font-weight: var(--font-weight-medium);
   color: var(--ds-login-ink-soft);
 }
 
@@ -771,66 +766,82 @@
   padding: 0;
   border: 0;
   background: none;
-  font-size: var(--text-md);
-  color: var(--ds-login-primary);
+  color: var(--ds-login-ink-soft);
+  font-size: var(--text-md-plus);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-decoration-color: var(--ds-login-ink-hairline);
   text-underline-offset: 4px;
   cursor: pointer;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 
-.login-forgot:hover { text-decoration: underline; }
+.login-forgot:hover {
+  color: var(--ds-login-ink);
+  text-decoration-color: var(--ds-login-ink);
+}
 
-/* Submit. */
+/* ---------- submit ---------- */
+
 .login-submit {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 0;
+  margin-top: 20px;
+  padding: 12px 0;
   border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--ds-login-primary);
-  color: var(--ds-login-primary-ink);
+  border-radius: var(--radius-md);
+  background: var(--ds-login-cta);
+  color: var(--ds-login-cta-ink);
   font-family: var(--font-sans);
-  font-size: var(--text-base);
-  font-weight: var(--font-weight-medium);
-  box-shadow: 0 14px 36px -16px var(--ds-login-submit-shadow);
+  font-size: var(--text-base-plus);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 10px 28px -10px var(--ds-login-cta-shadow);
   cursor: pointer;
-  transition: filter 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.login-submit:hover:not(:disabled) { filter: brightness(1.1); }
-.login-submit:active:not(:disabled) { transform: scale(0.98); }
-.login-submit:disabled { opacity: 0.6; cursor: default; }
+.login-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: var(--ds-login-cta-soft);
+  box-shadow: 0 16px 34px -12px var(--ds-login-cta-shadow);
+}
+
+.login-submit:active:not(:disabled) { transform: translateY(0); }
+
+.login-submit:disabled {
+  background: var(--ds-login-cta-disabled);
+  cursor: wait;
+}
 
 .login-submit-spinner {
   width: 16px;
   height: 16px;
   border-radius: var(--radius-round);
   border: 2px solid var(--ds-login-spinner-track);
-  border-top-color: var(--ds-login-primary-ink);
+  border-top-color: var(--ds-login-cta-ink);
   animation: login-spin 0.8s linear infinite;
 }
 
 @keyframes login-spin { to { transform: rotate(360deg); } }
 
 .login-demo-note {
+  margin-top: 16px;
   text-align: center;
-  font-size: var(--text-2xs);
+  font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   color: var(--ds-login-ink-faint);
 }
 
-/* Success phase. */
+/* ---------- success phase ---------- */
+
 .login-success {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
   text-align: center;
-  animation: login-rise-in 0.4s cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 
 .login-success-shield {
@@ -839,160 +850,230 @@
   justify-content: center;
   width: 64px;
   height: 64px;
-  border-radius: var(--radius-xl);
-  background: var(--ds-login-glass-fill-on);
-  border: 1px solid var(--ds-login-glass-border-strong);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen-top);
-  color: var(--ds-login-primary);
-  animation: login-pop-check 0.6s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ds-login-cta-ring);
+  background: var(--ds-login-cta-wash);
+  color: var(--ds-login-cta);
 }
 
-@keyframes login-pop-check {
-  0% { transform: scale(0.4); opacity: 0; }
-  60% { transform: scale(1.12); opacity: 1; }
-  100% { transform: scale(1); }
+/* The tick is drawn in rather than shown, as in the design. */
+.login-success-check {
+  width: 32px;
+  height: 32px;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: login-draw-check 0.5s 0.15s ease-out forwards;
 }
+
+@keyframes login-draw-check { to { stroke-dashoffset: 0; } }
 
 .login-success-title {
   margin-top: 20px;
-  font-size: var(--text-xl);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--text-2xl-plus);
+  font-weight: var(--font-weight-bold);
   color: var(--ds-login-ink);
 }
 
 .login-success-body {
   margin-top: 8px;
-  font-size: var(--text-md);
-  line-height: var(--leading-relaxed);
+  font-size: var(--text-md-plus);
   color: var(--ds-login-ink-soft);
 }
 
-.login-success-enter { margin-top: 24px; }
+.login-progress {
+  height: 6px;
+  margin-top: 28px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--ds-login-track);
+}
 
-.login-success-switch {
-  margin-top: 12px;
+.login-progress-bar {
   width: 100%;
-  padding: 10px 0;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--ds-login-glass-border-input);
-  background: var(--ds-login-glass-fill-input);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen-top);
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--ds-login-cta);
+  transform-origin: left;
+  animation: login-bar-grow 1.6s ease-in-out forwards;
+}
+
+@keyframes login-bar-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.login-progress-caption {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--ds-login-ink-faint);
+}
+
+.login-success-back {
+  margin-top: 32px;
+  padding: 8px 20px;
+  border: 1px solid var(--ds-login-chip-border);
+  border-radius: var(--radius-md);
+  background: var(--ds-login-chip-bg);
   color: var(--ds-login-ink-soft);
   font-family: var(--font-sans);
   font-size: var(--text-md);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.18s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.login-success-switch:hover {
+.login-success-back:hover {
+  background: var(--ds-login-input-bg-focus);
   color: var(--ds-login-ink);
-  background: var(--ds-login-glass-fill-hover);
 }
 
 /* ---------- status bar ---------- */
 
 .login-statusbar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   height: 44px;
-  padding: 0 40px;
-  border-top: 1px solid var(--ds-login-statusbar-border);
-  background: var(--ds-login-statusbar-bg);
+  padding: 0 20px;
+  border-top: 1px solid var(--ds-login-ink-hairline);
+  background: var(--ds-login-bar-bg);
 }
 
 .login-statusbar-keys {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: var(--text-2xs);
+  gap: 16px;
+  font-size: var(--text-sm);
   color: var(--ds-login-ink-soft);
+}
+
+.login-statusbar-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .login-keycap {
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: var(--radius-2xs);
-  border: 1px solid var(--ds-login-keycap-border);
-  background: var(--ds-login-keycap-bg);
-  box-shadow: inset 0 1px 0 var(--ds-login-glass-sheen);
+  border: 1px solid var(--ds-login-input-border);
+  background: var(--ds-login-chip-bg);
   font-family: var(--font-mono);
-  font-size: var(--text-3xs);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--ds-login-ink-soft);
 }
 
-.login-keycap-spaced { margin-left: 8px; }
-
-.login-statusbar-state {
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  letter-spacing: var(--tracking-wide);
-  color: var(--ds-login-ink-faint);
+.login-service-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--ds-login-ink-soft);
 }
 
 .login-service-dot {
-  display: inline-block;
   width: 6px;
   height: 6px;
-  margin-right: 6px;
   border-radius: var(--radius-round);
   background: var(--ds-login-service-ok);
-  animation: login-pulse 2s ease-in-out infinite;
+  animation: login-pulse-dot 2.4s ease-in-out infinite;
 }
 
 .login-service-dot.is-down {
-  background: var(--ds-login-service-down);
+  background: var(--ds-login-danger);
   animation: none;
 }
 
-@keyframes login-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
+@keyframes login-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 /* ---------- toast ---------- */
 
 .login-toast {
-  position: fixed;
-  bottom: 32px;
+  position: absolute;
   left: 50%;
-  transform: translateX(-50%);
+  top: 24px;
   z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: var(--radius-full);
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ds-login-toast-border);
   backdrop-filter: saturate(160%) blur(20px);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
   background: var(--ds-login-toast-bg);
-  border: 1px solid var(--ds-login-glass-border);
-  box-shadow:
-    inset 0 1px 0 var(--ds-login-glass-sheen),
-    0 18px 50px -20px var(--ds-login-toast-shadow);
   color: var(--ds-login-toast-ink);
-  font-size: var(--text-base);
-  animation: login-toast-in 0.28s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-medium);
+  box-shadow: 0 18px 40px -18px var(--ds-login-toast-shadow);
+  animation: login-rise-in 0.25s ease-out both;
 }
 
-@keyframes login-toast-in {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+.login-toast.is-error {
+  background: var(--ds-login-danger);
+  border-color: var(--ds-login-danger);
+  color: var(--ds-login-cta-ink);
 }
 
-/* ---------- shared icon sizing ---------- */
+/* ---------- shared + entrance ---------- */
 
 .login-icon { display: block; }
 
+/* Entrance stagger, as a static class table rather than inline styles. */
+.login-rise-1 { animation: login-rise-in 0.5s 0.05s ease-out backwards; }
+.login-rise-2 { animation: login-rise-in 0.5s 0.1s ease-out backwards; }
+.login-rise-3 { animation: login-rise-in 0.5s 0.18s ease-out backwards; }
+.login-rise-4 { animation: login-rise-in 0.5s 0.26s ease-out backwards; }
+.login-rise-5 { animation: login-rise-in 0.5s 0.32s ease-out backwards; }
+.login-rise-6 { animation: login-rise-in 0.5s 0.38s ease-out backwards; }
+.login-rise-7 { animation: login-rise-in 0.5s 0.45s ease-out backwards; }
+.login-rise-feature-1 { animation: login-rise-in 0.5s 0.2s ease-out backwards; }
+.login-rise-feature-2 { animation: login-rise-in 0.5s 0.28s ease-out backwards; }
+.login-rise-feature-3 { animation: login-rise-in 0.5s 0.36s ease-out backwards; }
+
+@keyframes login-rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.login-window.is-shaking { animation: login-shake 0.45s ease-in-out both; }
+
+@keyframes login-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .login-spec-plate,
-  .login-spec-plate::before,
-  .login-spec-tick.on,
-  .login-spec-chip,
-  .login-captcha-flip,
-  .login-success-shield,
+  .login-window,
+  .login-window.is-shaking,
+  .login-eq-bar,
+  .login-captcha-skeleton,
+  .login-progress-bar,
+  .login-success-check,
+  .login-service-dot,
   .login-toast,
-  .login-service-dot {
+  .login-rise-1,
+  .login-rise-2,
+  .login-rise-3,
+  .login-rise-4,
+  .login-rise-5,
+  .login-rise-6,
+  .login-rise-7,
+  .login-rise-feature-1,
+  .login-rise-feature-2,
+  .login-rise-feature-3 {
     animation: none !important;
-    transition: none !important;
   }
+
+  .login-success-check { stroke-dashoffset: 0; }
+  .login-progress-bar { transform: scaleX(1); }
 }
