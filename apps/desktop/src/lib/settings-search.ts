@@ -61,6 +61,9 @@ export const SETTINGS_NAV: SettingsNavEntry[] = [
     titleKey: "settings.general",
     group: "preferences",
     keywordKeys: [
+      "account.settingsTitle",
+      "account.signOut",
+      "account.signedInAs",
       "settings.appearance",
       "settings.storage.title",
       "settings.storage.dataPath",

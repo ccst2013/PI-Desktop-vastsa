@@ -216,6 +216,68 @@
   --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   /* Global type scale (D343). 1 = product ramp; Appearance multiplies --text-*. */
   --font-scale: 1;
+
+  /*
+    Sign-in surface (login.css), dark palette. The approved design is a light
+    glass window; this is the same window read in the dark — the lavender/blush
+    pane tints deepened to violet/plum, the white glass to white-alpha, and the
+    action violet lifted for contrast on a dark plate.
+  */
+  --ds-login-surface: #17131f;
+  --ds-login-ink: #ece8f7;
+  --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 66%, transparent);
+  --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 44%, transparent);
+  --ds-login-ink-hairline: rgb(255 255 255 / 0.08);
+  --ds-login-cta: #8b6cff;
+  --ds-login-cta-soft: #a791ff;
+  --ds-login-cta-ink: #ffffff;
+  --ds-login-danger: #ff6b6b;
+  --ds-login-danger-ink: #ffc9c9;
+  --ds-login-service-ok: #28c840;
+  --ds-login-traffic-close: #ff5f57;
+  --ds-login-traffic-minimize: #febc2e;
+  --ds-login-traffic-zoom: #28c840;
+  --ds-login-traffic-shade: rgb(0 0 0 / 0.25);
+
+  --ds-login-bar-bg: rgb(255 255 255 / 0.05);
+  --ds-login-input-bg: rgb(255 255 255 / 0.07);
+  --ds-login-input-bg-focus: rgb(255 255 255 / 0.12);
+  --ds-login-input-border: rgb(255 255 255 / 0.12);
+  --ds-login-input-border-focus: color-mix(in oklab, var(--ds-login-cta) 60%, transparent);
+  --ds-login-chip-bg: rgb(255 255 255 / 0.09);
+  --ds-login-chip-border: rgb(255 255 255 / 0.14);
+  --ds-login-card-bg: rgb(255 255 255 / 0.06);
+  --ds-login-card-bg-hover: rgb(255 255 255 / 0.1);
+  --ds-login-card-border: rgb(255 255 255 / 0.1);
+  --ds-login-card-border-hover: rgb(255 255 255 / 0.16);
+  --ds-login-brand-pane: linear-gradient(
+    160deg,
+    rgb(58 46 92 / 0.72) 0%,
+    rgb(74 42 66 / 0.6) 100%
+  );
+  --ds-login-brand-glow: color-mix(in oklab, var(--ds-login-cta) 16%, transparent);
+  --ds-login-track: rgb(255 255 255 / 0.1);
+  --ds-login-switch-off: rgb(255 255 255 / 0.16);
+  --ds-login-switch-knob: #ffffff;
+  --ds-login-toast-bg: rgb(30 24 44 / 0.94);
+  --ds-login-toast-ink: var(--ds-login-ink);
+  --ds-login-toast-border: rgb(255 255 255 / 0.14);
+  --ds-login-error-banner-bg: color-mix(in oklab, var(--ds-login-danger) 12%, transparent);
+  --ds-login-focus-ring: color-mix(in oklab, var(--ds-login-cta) 45%, transparent);
+  --ds-login-field-error-bg: color-mix(in oklab, var(--ds-login-danger) 6%, transparent);
+  --ds-login-captcha-bg: rgb(255 255 255 / 0.9);
+  --ds-login-captcha-overlay: rgb(24 19 31 / 0.72);
+  --ds-login-captcha-overlay-ink: #ffffff;
+  --ds-login-toast-shadow: rgb(8 3 18 / 0.55);
+  --ds-login-cta-wash: color-mix(in oklab, var(--ds-login-cta) 18%, transparent);
+  --ds-login-cta-ring: color-mix(in oklab, var(--ds-login-cta) 32%, transparent);
+  --ds-login-cta-bar: color-mix(in oklab, var(--ds-login-cta) 55%, transparent);
+  --ds-login-cta-shadow: color-mix(in oklab, var(--ds-login-cta) 55%, transparent);
+  --ds-login-cta-disabled: color-mix(in oklab, var(--ds-login-cta) 70%, transparent);
+  --ds-login-danger-border: color-mix(in oklab, var(--ds-login-danger) 60%, transparent);
+  --ds-login-danger-ring: color-mix(in oklab, var(--ds-login-danger) 25%, transparent);
+  --ds-login-hover-wash: rgb(255 255 255 / 0.05);
+  --ds-login-spinner-track: rgb(255 255 255 / 0.4);
 }
 
 :root[data-theme="light"] {
@@ -295,6 +357,67 @@
   /* Codex elevation-prominent exact (same dark/light formula). */
   --ds-shadow-composer: 0 3px 7.5px #0000000a, 0 0 20px #0000000d;
   --ds-bg-elevated-primary: color-mix(in oklab, #ffffff 70%, transparent);
+
+  /*
+    Sign-in surface (login.css), light palette — the approved design read
+    directly: a white glass window, a lavender-to-blush brand pane, ink #241b3e
+    and the action violet #5b3df0.
+  */
+  --ds-login-surface: #fafafb;
+  --ds-login-ink: #241b3e;
+  --ds-login-ink-soft: color-mix(in oklab, var(--ds-login-ink) 68%, transparent);
+  --ds-login-ink-faint: color-mix(in oklab, var(--ds-login-ink) 48%, transparent);
+  --ds-login-ink-hairline: color-mix(in oklab, var(--ds-login-ink) 8%, transparent);
+  --ds-login-cta: #5b3df0;
+  --ds-login-cta-soft: #7c5cff;
+  --ds-login-cta-ink: #ffffff;
+  --ds-login-danger: #e5484d;
+  --ds-login-danger-ink: #c22a3a;
+  --ds-login-service-ok: #16a34a;
+  --ds-login-traffic-close: #ff5f57;
+  --ds-login-traffic-minimize: #febc2e;
+  --ds-login-traffic-zoom: #28c840;
+  --ds-login-traffic-shade: rgb(0 0 0 / 0.25);
+
+  --ds-login-bar-bg: rgb(255 255 255 / 0.55);
+  --ds-login-input-bg: rgb(255 255 255 / 0.7);
+  --ds-login-input-bg-focus: #ffffff;
+  --ds-login-input-border: color-mix(in oklab, var(--ds-login-ink) 12%, transparent);
+  --ds-login-input-border-focus: color-mix(in oklab, var(--ds-login-cta) 50%, transparent);
+  --ds-login-chip-bg: rgb(255 255 255 / 0.75);
+  --ds-login-chip-border: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
+  --ds-login-card-bg: rgb(255 255 255 / 0.65);
+  --ds-login-card-bg-hover: rgb(255 255 255 / 0.85);
+  --ds-login-card-border: color-mix(in oklab, var(--ds-login-ink) 8%, transparent);
+  --ds-login-card-border-hover: color-mix(in oklab, var(--ds-login-ink) 15%, transparent);
+  --ds-login-brand-pane: linear-gradient(
+    160deg,
+    rgb(245 241 255 / 0.72) 0%,
+    rgb(253 238 246 / 0.6) 100%
+  );
+  --ds-login-brand-glow: color-mix(in oklab, var(--ds-login-cta) 10%, transparent);
+  --ds-login-track: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
+  --ds-login-switch-off: color-mix(in oklab, var(--ds-login-ink) 15%, transparent);
+  --ds-login-switch-knob: #ffffff;
+  --ds-login-toast-bg: rgb(255 255 255 / 0.9);
+  --ds-login-toast-ink: var(--ds-login-ink);
+  --ds-login-toast-border: color-mix(in oklab, var(--ds-login-ink) 10%, transparent);
+  --ds-login-error-banner-bg: color-mix(in oklab, var(--ds-login-danger) 6%, transparent);
+  --ds-login-focus-ring: color-mix(in oklab, var(--ds-login-cta) 25%, transparent);
+  --ds-login-field-error-bg: color-mix(in oklab, var(--ds-login-danger) 5%, transparent);
+  --ds-login-captcha-bg: rgb(255 255 255 / 0.82);
+  --ds-login-captcha-overlay: rgb(255 255 255 / 0.75);
+  --ds-login-captcha-overlay-ink: var(--ds-login-ink);
+  --ds-login-toast-shadow: color-mix(in oklab, var(--ds-login-ink) 35%, transparent);
+  --ds-login-cta-wash: color-mix(in oklab, var(--ds-login-cta) 10%, transparent);
+  --ds-login-cta-ring: color-mix(in oklab, var(--ds-login-cta) 20%, transparent);
+  --ds-login-cta-bar: color-mix(in oklab, var(--ds-login-cta) 45%, transparent);
+  --ds-login-cta-shadow: color-mix(in oklab, var(--ds-login-cta) 30%, transparent);
+  --ds-login-cta-disabled: color-mix(in oklab, var(--ds-login-cta) 70%, transparent);
+  --ds-login-danger-border: color-mix(in oklab, var(--ds-login-danger) 60%, transparent);
+  --ds-login-danger-ring: color-mix(in oklab, var(--ds-login-danger) 25%, transparent);
+  --ds-login-hover-wash: color-mix(in oklab, var(--ds-login-ink) 5%, transparent);
+  --ds-login-spinner-track: rgb(255 255 255 / 0.4);
 }
 
 @theme {
@@ -368,12 +491,17 @@
   --text-lg-plus: calc(18px * var(--font-scale));
   --text-xl: calc(20px * var(--font-scale));
   --text-2xl: calc(28px * var(--font-scale));
+  /* Two steps the sign-in surface's display type needs; every other consumer
+     stops at --text-2xl. */
+  --text-2xl-plus: calc(24px * var(--font-scale));
+  --text-3xl: calc(34px * var(--font-scale));
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-medium-plus: 520;
   --font-weight-strong: 560;
   --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
   --leading-none: 1;
   --leading-heading: 1.15;
@@ -392,4 +520,5 @@
   --tracking-tight: -0.02em;
   --tracking-normal: 0em;
   --tracking-wide: 0.02em;
+  --tracking-widest: 0.18em;
 }

@@ -31,6 +31,9 @@ import type {
   PendingInteractiveRequests,
   AgentInstructionFile,
   AppSettings,
+  AccountCaptcha,
+  AccountSignInInput,
+  AccountState,
   JevKeyCheckResult,
   CommandShellCatalog,
   AppVersionInfo,
@@ -155,6 +158,7 @@ import type {
   StorageInfo,
 } from "@pi-desktop/shared";
 import {
+  SIGNED_OUT_ACCOUNT_STATE,
   defaultCommandShellForPlatform,
   IPC,
   isCommandShellId,
@@ -812,6 +816,20 @@ export const api = {
     ),
   runImportModelConfigs: (items: ModelConfigImportCandidate[]) =>
     invoke<ImportRunResult>(IPC.invoke.modelConfigImportRun, items),
+  /**
+   * A fresh single-use graphical challenge.
+   *
+   * The ticket is consumed by the next sign-in whether that sign-in succeeds or
+   * not, so every failure has to call this again rather than retry the old one.
+   */
+  getAccountCaptcha: () => invoke<AccountCaptcha>(IPC.invoke.accountCaptchaGet),
+  signIn: (input: AccountSignInInput) =>
+    invoke<AccountState>(IPC.invoke.accountSignIn, input),
+  signOut: () => invoke<AccountState>(IPC.invoke.accountSignOut),
+  /** The gate's boot read. Answers from main's in-memory snapshot, not the network. */
+  getAccountState: () => invoke<AccountState>(IPC.invoke.accountStateGet),
+  /** Re-read the profile, renewing the session on the way if it lapsed. */
+  refreshAccountProfile: () => invoke<AccountState>(IPC.invoke.accountProfileRefresh),
   getSettings: () => invoke<AppSettings>(IPC.invoke.settingsGet).then(normalizeSettings),
   getStorageInfo: () => invoke<StorageInfo>(IPC.invoke.storageGet),
   chooseStorageDirectory: () => invoke<string | null>(IPC.invoke.storageChoose),
@@ -2065,6 +2083,17 @@ export const api = {
     if (!window.piDesktop?.on) return () => undefined;
     return window.piDesktop.on(IPC.event.settingsChanged, (payload) =>
       listener((payload ?? {}) as Record<string, unknown>),
+    );
+  },
+  /**
+   * The signed-in identity changed: a sign-in, a sign-out, or a session the main
+   * process could not restore. The shell's outermost gate listens here, so a
+   * sign-out closes it wherever the user triggered it.
+   */
+  onAccountChanged: (listener: (state: AccountState) => void) => {
+    if (!window.piDesktop?.on) return () => undefined;
+    return window.piDesktop.on(IPC.event.accountChanged, (payload) =>
+      listener((payload ?? SIGNED_OUT_ACCOUNT_STATE) as AccountState),
     );
   },
   onConfigSyncChanged: (listener: (state: ConfigSyncState) => void) => {

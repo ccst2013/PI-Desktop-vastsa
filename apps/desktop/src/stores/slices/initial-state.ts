@@ -1,4 +1,5 @@
 import { loadRecentModels } from "../../lib/recent-models";
+import { SIGNED_OUT_ACCOUNT_STATE } from "@pi-desktop/shared";
 import type { AppState, AppStateData } from "../app-state";
 import { projectWorkspaceFromPath } from "../../lib/sidebar-preferences";
 import { loadSidebarPreferences } from "../../lib/sidebar-preferences";
@@ -19,6 +20,13 @@ function withProjectDisplayName(
 export function createInitialState(): AppStateData {
   return {
     ready: false,
+    /**
+     * Signed out until main says otherwise. The gate reads `accountResolved`
+     * before it trusts this, so the shell never mounts on the assumption and
+     * then has to unmount.
+     */
+    account: SIGNED_OUT_ACCOUNT_STATE,
+    accountResolved: false,
     recentModels: loadRecentModels(),
     healthOk: false,
     sessions: [],

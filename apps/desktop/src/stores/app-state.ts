@@ -9,6 +9,7 @@ import type {
   AppSettings,
   AppVersionInfo,
   AskToolResolution,
+  AccountState,
   ContextCompactionMark,
   Mode,
   ModelInfo,
@@ -116,6 +117,16 @@ export type DraftSessionConfiguration = {
 
 export type AppState = {
   ready: boolean;
+  /**
+   * The signed-in identity, and whether it has been resolved yet.
+   *
+   * This is the outermost gate: until `accountResolved` is true the shell does
+   * not know whether it may mount, and once `account.signedIn` is false the
+   * sign-in surface replaces the whole shell so no navigation can route around
+   * it. The state carries no credential — main keeps those.
+   */
+  account: AccountState;
+  accountResolved: boolean;
   version?: AppVersionInfo;
   healthOk: boolean;
   settings?: AppSettings;
@@ -206,6 +217,16 @@ export type AppState = {
   /** Whether the current error is worth a one-click retry. */
   errorRetriable?: boolean | null;
   bootstrap: () => Promise<void>;
+  /**
+   * Resolve the signed-in identity from the main process.
+   *
+   * Settles independently of `bootstrap`: a local snapshot that cannot be read
+   * must not turn a saved identity into a signed-out account, and a slow
+   * account service must not hold up the rest of the shell's data.
+   */
+  refreshAccount: () => Promise<void>;
+  /** Apply an identity pushed by main (sign-in, sign-out, or a failed restore). */
+  applyAccountState: (state: AccountState) => void;
   refreshSessions: (options?: RefreshSessionsOptions) => Promise<void>;
   prefetchSession: (id: string) => Promise<void>;
   navigateTranscript: (target: Omit<TranscriptSearchTarget, "requestId">) => Promise<void>;

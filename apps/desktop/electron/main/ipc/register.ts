@@ -9,6 +9,8 @@ import { registerAgentExtensionIpc } from "../agent-extensions-ipc";
 import { readNpmPath, writeNpmPath } from "../npm-preferences";
 import { registerAgentIpc } from "./agent-ipc";
 import { registerAppIpc } from "./app-ipc";
+import { registerAccountIpc } from "./account-ipc";
+import type { AccountService } from "../account/service";
 import { registerDiagnosticsIpc } from "./diagnostics-ipc";
 import { registerMarketIpc } from "./market-ipc";
 import { registerMcpIpc } from "./mcp-ipc";
@@ -77,6 +79,10 @@ export type RegisterIpcDependencies = {
   liveVoiceWidget?: LiveVoiceWidget;
   restartForStorage: () => void;
   mcpOAuth?: McpOAuthManager;
+  /** The sign-in gate. Owns the account HTTP conversation and its credentials. */
+  accountService: AccountService;
+  /** Re-applies window chrome that depends on whether the gate is open. */
+  accountSyncWindowChrome?: (signedIn: boolean) => void;
   markLifecycleDialogRendererReady: (window: BrowserWindow) => boolean;
   respondLifecycleDialog: (senderWindowId: number, requestId: unknown, choice: LifecycleDialogChoice) => boolean;
   [name: string]: any;
@@ -195,6 +201,8 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     voiceService,
     liveCallService,
     liveVoiceWidget,
+    accountService,
+    accountSyncWindowChrome,
   } = dependencies;
 
 
@@ -291,6 +299,11 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     beginTranscriptRewrite,
     forgetTranscriptRewriteHistory,
     stripWinLongPrefix,
+  });
+  registerAccountIpc({
+    registrar,
+    service: accountService,
+    syncWindowChrome: accountSyncWindowChrome,
   });
   registerSettingsIpc({
     registrar,

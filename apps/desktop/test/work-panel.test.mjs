@@ -687,7 +687,7 @@ test("preview mode keeps shell actions and restores routes before navigation", (
   // follow the boot surface that is actually up (splash or startup recovery).
   assert.match(
     appSource,
-    /\{\(ready && !showSplash\) \|\| startupPhase !== "starting" \? \(\s*<WindowControls \/>/,
+    /\{\(bootResolved && account\.signedIn && !showSplash\) \|\| startupPhase !== "starting" \? \(\s*<WindowControls \/>/,
   );
   assert.match(appSource, /const workPanelMaximizedRef = useRef\(false\)/);
   assert.match(
