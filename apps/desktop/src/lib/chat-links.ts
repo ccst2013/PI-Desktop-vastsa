@@ -39,7 +39,7 @@ const KNOWN_EXTS = new Set([
 ]);
 
 const FILE_TOKEN_RE =
-  /^(?:(?:[A-Za-z]:[\\/]|~[\\/]|\\\\|\/\/|[\\/])|(?:\.{1,2}[\\/])?)[\p{L}\p{N}_@+. -]+(?:[\\/][\p{L}\p{N}_@+. -]+)*(?::\d+(?::\d+)?)?$/u;
+  /^(?:(?:[A-Za-z]:[\\/]|~[\\/]|\\\\|\/\/|[\\/])|(?:\.{1,2}[\\/])?)[\p{L}\p{N}_@+. -]+(?:[\\/][\p{L}\p{N}_@+. -]+)*(?::\d+(?::\d+|-\d+)?|#[lL]\d+(?:-[lL]?\d+)?)?$/u;
 
 const AT_QUOTED_RE = /^@"([^"\n]+)"$/;
 const AT_UNQUOTED_RE = /^@(\/?[^\s]+)$/;
@@ -53,22 +53,23 @@ export function isHtmlFilePath(path: string): boolean {
 }
 
 function stripLineRef(path: string): string {
-  return path.replace(/:\d+(?::\d+)?$/, "");
+  return path.replace(/(?::\d+(?::\d+|-\d+)?|#[lL]\d+(?:-[lL]?\d+)?)$/u, "");
 }
 
-/** Trailing `:line[:col]` on a file token, if any. */
+/** Trailing line, column, range, or GitHub line anchor on a file token. */
 export function parseFileRefPosition(
   text: string,
 ): { line: number; column?: number } | null {
   const token = text.trim().replace(/[.,!?;:，。！？；：]+$/u, "");
-  const match = token.match(/:(\d+)(?::(\d+))?$/);
+  const match = token.match(/(?::(\d+)(?::(\d+)|-(\d+))?|#L(\d+)(?:-L?(\d+))?)$/iu);
   if (!match) return null;
-  const line = Number(match[1]);
+  const line = Number(match[1] ?? match[4]);
   if (!Number.isFinite(line) || line < 1) return null;
-  const column = match[2] !== undefined ? Number(match[2]) : undefined;
-  return column !== undefined && Number.isFinite(column) && column >= 1
-    ? { line, column }
-    : { line };
+  const column = match[2] ? Number(match[2]) : undefined;
+  if (column !== undefined && (!Number.isFinite(column) || column < 1)) return null;
+  const rangeEnd = match[3] ?? match[5];
+  if (rangeEnd !== undefined && (!Number.isFinite(Number(rangeEnd)) || Number(rangeEnd) < line)) return null;
+  return { line, ...(column !== undefined ? { column } : {}) };
 }
 
 function leafName(path: string): string {
@@ -288,17 +289,39 @@ export function handleMarkdownFileLinkClick(
   openFileRef: (path: string, baseDir?: string, mimeType?: string,
     position?: { line?: number; column?: number }) => void,
 ): boolean {
-  const decoded = safeDecodeUri(href);
-  const target = resolvePreviewTarget(decoded, root, baseDir);
-  const ref = target?.kind === "file" ? target.path : toWorkspaceRel(decoded, root, baseDir);
-  if (!ref) return false;
+  const target = markdownLinkFileTarget(href, root, baseDir);
+  if (!target) return false;
   event.preventDefault();
-  if (target?.kind === "file" && target.line !== undefined) {
-    openFileRef(ref, baseDir, undefined, { line: target.line, column: target.column });
+  if (target.line !== undefined) {
+    openFileRef(target.path, baseDir, undefined, { line: target.line, column: target.column });
   } else {
-    openFileRef(ref, baseDir);
+    openFileRef(target.path, baseDir);
   }
   return true;
+}
+
+/**
+ * The file a local Markdown link destination names, shared by click and the
+ * context menu. A link destination is an explicit reference, so an absolute
+ * path counts even without a file extension (`/etc/hosts`, `.../Makefile`):
+ * the extension heuristic only keeps prose from turning into chips. The main
+ * process still decides whether the file exists and may open (ADR 0339).
+ */
+export function markdownLinkFileTarget(
+  href: string,
+  root: string | null | undefined,
+  baseDir: string | null | undefined,
+): { path: string; line?: number; column?: number } | null {
+  const decoded = safeDecodeUri(href);
+  const target = resolvePreviewTarget(decoded, root, baseDir);
+  if (target?.kind === "file") return target;
+  const rel = toWorkspaceRel(decoded, root, baseDir);
+  if (rel) return { path: rel };
+  const trimmed = decoded.trim();
+  const path = stripLineRef(trimmed);
+  if (!path || /[\n\0]/.test(path) || /[\\/]$/.test(path) || !isAbsoluteFilePath(path)) return null;
+  const position = path === trimmed ? null : parseFileRefPosition(trimmed);
+  return { path, ...(position ?? {}) };
 }
 
 /** Tool-call args → preview target (Read/Write/Edit paths, fetch URLs). */

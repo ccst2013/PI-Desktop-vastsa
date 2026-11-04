@@ -14,7 +14,17 @@ import { randomUUID } from "node:crypto";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pluginNetFetch, parseFetchRedirect, type PluginFetchTransport } from "./plugin-net-fetch";
 import type { LoadedSkillDocument } from "./skill-document";
+import { assertLocalPluginRoot, pluginFsReadOptions, readRemotePluginFiles, type PluginRemoteFilesRead } from "./plugin-remote-files";
 import { getModuleDirectory } from "./module-path";
+import {
+  SESSION_WRITE_GRANTS,
+  describeSessionWriteProblem,
+  resolveSessionScope,
+  type SessionAccessScope,
+  type SessionAccessVerb,
+  type SessionWriteApi,
+  type SessionWriteShape,
+} from "./plugin-session-access";
 import {
   busTopicAllowed,
   isDeniedFsPath,
@@ -28,6 +38,7 @@ import {
   normalizeFsPath,
   parseNetDomains,
   parseSkillFrontmatter,
+  PLUGIN_FS_LIST_MAX_ENTRIES,
   pluginMcpToolKey,
   pluginSkillId,
   pluginThemeId,
@@ -56,6 +67,7 @@ import {
   type PluginFsMode,
   type PluginFsPolicy,
   type PluginFsRule,
+  type PluginFsReadOptions,
   type PluginLlmContext,
   type PluginManifest,
   type PluginModelInfo,
@@ -68,6 +80,7 @@ import {
   type PluginProviderOAuthRequest,
   type PluginProviderContrib,
   type PluginRevealViewInput,
+  type PluginProjectInfo,
   type PluginServiceContrib,
   type PluginSettingContrib,
   type PluginComposerTransformInput,
@@ -319,12 +332,15 @@ export type PluginHostServices = {
    * it. Additive: `workspace.get` falls back to `getWorkspacePath` alone.
    */
   getWorkspaceInfo?: () => PluginWorkspaceInfo | null;
+  /** Durable project metadata only; unavailable hosts resolve to an empty list. */
+  listProjects?: () => Promise<PluginProjectInfo[]>;
   /**
    * The project the tool session behind this call belongs to, when the host
    * tracks one. Additive: an fs call falls back to `getWorkspacePath` -- the
    * visible workspace -- for a panel call or an unknown session.
    */
   getWorkspacePathForSession?: (sessionId: string) => string | null;
+  readRemoteWorkspaceFiles?: PluginRemoteFilesRead;
   /** The set of `contributes.agentExtensions` modules changed (load/unload). */
   agentExtensionsChanged?: () => void;
   getLocale?: () => string;
@@ -472,18 +488,19 @@ export type PluginHostServices = {
     action: (action: "back" | "forward" | "reload" | "stop", sessionId?: string, tabId?: string) => void;
     setBounds: (pluginId: string, hole: unknown) => unknown;
     setVisible: (pluginId: string, visible: boolean) => void;
-    getState: () => unknown;
+    getState: (sessionId?: string, tabId?: string) => unknown;
     openExternal: (sessionId?: string, tabId?: string) => void;
-    snapshot: () => Promise<unknown>;
+    snapshot: (sessionId?: string, tabId?: string) => Promise<unknown>;
     screenshot: (
       input?: { fullPage?: boolean },
       sessionId?: string,
+      tabId?: string,
     ) => Promise<unknown>;
-    click: (uid: string) => Promise<void>;
-    fill: (uid: string, text: string) => Promise<void>;
-    evaluate: (expression: string) => Promise<unknown>;
-    console: (limit?: number) => unknown;
-    cdp: (method: string, params?: unknown) => Promise<unknown>;
+    click: (uid: string, sessionId?: string, tabId?: string) => Promise<void>;
+    fill: (uid: string, text: string, sessionId?: string, tabId?: string) => Promise<void>;
+    evaluate: (expression: string, sessionId?: string, tabId?: string) => Promise<unknown>;
+    console: (limit?: number, sessionId?: string, tabId?: string) => unknown;
+    cdp: (method: string, params?: unknown, sessionId?: string, tabId?: string) => Promise<unknown>;
   };
   onPluginUnload?: (pluginId: string) => void;
   listModels?: () => Promise<PluginModelInfo[]>;
@@ -503,6 +520,10 @@ export type PluginHostServices = {
     importBatch: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
     rename: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
     delete: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
+    appendMessage: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
+    replaceMessages: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
+    deleteMessage: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
+    truncateFrom: (pluginId: string, input: Record<string, unknown>) => Promise<unknown>;
   };
   /**
    * The session the user is looking at, as the shell shows it. Read from the
@@ -578,6 +599,7 @@ const HOST_API_ALLOWLIST = new Set([
   "desktop.listOperations",
   "desktop.invoke",
   "workspace.get",
+  "projects.list",
   "fs.readText",
   "fs.stat",
   "fs.readRange",
@@ -638,6 +660,10 @@ const HOST_API_ALLOWLIST = new Set([
   "session.importBatch",
   "session.rename",
   "session.delete",
+  "session.appendMessage",
+  "session.replaceMessages",
+  "session.deleteMessage",
+  "session.truncateFrom",
   "usage.listTurns",
   "agent.complete",
   "providers.oauth.prompt",
@@ -798,8 +824,6 @@ export const MAX_COMPLETE_SYSTEM_CHARS = 32 * 1024;
 export const MAX_COMPLETE_MESSAGE_CHARS = 200_000;
 /** Kept from the pre-scope implementation: a listing is not a search index. */
 const MAX_GLOB_MATCHES = 500;
-/** Entries returned for one directory. A tree is walked lazily, not dumped. */
-const MAX_LIST_ENTRIES = 1000;
 /** Maximum bytes one plugin range call may cross the broker with. */
 const MAX_FS_READ_RANGE_BYTES = 8 * 1024 * 1024;
 /**
@@ -1051,6 +1075,25 @@ function normalizePluginSessionInput(
 ): Record<string, unknown> {
   validatePluginSessionPayload(input, kind);
   return { ...(input as Record<string, unknown>) };
+}
+
+/**
+ * Bound one message-level write payload (ADR 0339).
+ *
+ * The policy lives in `plugin-session-access` so it can be tested without a
+ * plugin host; this wrapper only turns a problem into the broker's own error and
+ * strips a scope the plugin must never set for itself.
+ */
+function normalizePluginMessageWriteInput(
+  input: unknown,
+  shape: SessionWriteShape,
+): Record<string, unknown> {
+  const rejected = describeSessionWriteProblem(input, shape);
+  if (rejected) throw apiError(rejected.code, rejected.message);
+  const record = { ...(input as Record<string, unknown>) };
+  // A plugin never chooses its own scope: the gateway sets it from the grants.
+  delete record.scope;
+  return record;
 }
 
 /** Longest session or turn id a plugin may name, matching the host's own bound. */
@@ -2502,7 +2545,7 @@ export class PluginRuntime {
           context?.droppedPath,
         );
       case "fs.readPreview":
-        return api.fs.readPreview(String(payload?.path ?? ""));
+        return api.fs.readPreview(String(payload?.path ?? ""), pluginFsReadOptions(payload?.workspacePath));
       case "fs.openDefault":
         await api.fs.openDefault(String(payload?.path ?? ""));
         return { ok: true };
@@ -2518,7 +2561,7 @@ export class PluginRuntime {
       case "fs.glob":
         return api.fs.glob(String(payload?.pattern ?? "*"));
       case "fs.list":
-        return api.fs.list(String(payload?.path ?? ""));
+        return api.fs.list(String(payload?.path ?? ""), pluginFsReadOptions(payload?.workspacePath));
       // Deleting is not reachable from a panel; choosing a directory is, and
       // has to be, because a "pick a folder" button is panel UI by nature.
       case "fs.requestDirectory":
@@ -2572,6 +2615,8 @@ export class PluginRuntime {
         return { ok: true };
       case "workspace.get":
         return api.workspace.get();
+      case "projects.list":
+        return api.projects.list();
       case "models.list":
         this.assertPermission(loaded, "models.list");
         return this.dispatchHostCall(loaded, "models.list", []);
@@ -2739,6 +2784,10 @@ export class PluginRuntime {
         };
         const id = String(descriptor.id ?? "");
         if (!id) throw apiError("INVALID_ARGUMENT", "command.id is required");
+        const existing = this.commands.get(id);
+        if (existing && existing.pluginId !== pluginId) {
+          throw apiError("CONFLICT", `command is registered by another plugin: ${id}`);
+        }
         this.commands.set(id, {
           id,
           title: String(descriptor.title ?? id),
@@ -2758,7 +2807,12 @@ export class PluginRuntime {
         return { ok: true };
       }
       case "commands.unregister": {
-        this.commands.delete(String(args[0] ?? ""));
+        const id = String(args[0] ?? "");
+        const command = this.commands.get(id);
+        if (command && command.pluginId !== pluginId) {
+          throw apiError("PERMISSION_DENIED", `command belongs to another plugin: ${id}`);
+        }
+        this.commands.delete(id);
         return { ok: true };
       }
       case "keyboard.registerGlobalShortcut": {
@@ -3212,45 +3266,84 @@ export class PluginRuntime {
         return this.services.providerOAuthNotify(pluginId, loginId, event as PluginProviderOAuthEvent);
       }
       case "session.list": {
-        this.assertPermission(loaded, "session.read.own");
+        const scope = this.assertSessionScope(loaded, "read", api);
         const input = normalizePluginSessionInput(args[0] ?? {}, "other");
-        if (input.source !== undefined) this.sessionSource(loaded, input.source);
+        // A declared source only bounds the `.own` importer; `.all` reaches every
+        // session but has no source declaration to check it against.
+        if (scope === "own" && input.source !== undefined) {
+          this.sessionSource(loaded, input.source);
+        }
         if (!this.services.session?.list) {
           throw apiError("UNSUPPORTED", "host api not available: session.list");
         }
-        return this.services.session.list(loaded.manifest.id, input);
+        return this.services.session.list(loaded.manifest.id, { ...input, scope });
       }
       case "session.get": {
-        this.assertPermission(loaded, "session.read.own");
+        const scope = this.assertSessionScope(loaded, "read", api);
         const input = normalizePluginSessionInput(args[0] ?? {}, "other");
         if (!this.services.session?.get) {
           throw apiError("UNSUPPORTED", "host api not available: session.get");
         }
-        return this.services.session.get(loaded.manifest.id, input);
+        return this.services.session.get(loaded.manifest.id, { ...input, scope });
       }
       case "session.listMessages": {
-        this.assertPermission(loaded, "session.read.own");
+        const scope = this.assertSessionScope(loaded, "read", api);
         const input = normalizePluginSessionInput(args[0] ?? {}, "other");
         if (!this.services.session?.listMessages) {
           throw apiError("UNSUPPORTED", "host api not available: session.listMessages");
         }
-        return this.services.session.listMessages(loaded.manifest.id, input);
+        return this.services.session.listMessages(loaded.manifest.id, { ...input, scope });
       }
       case "session.rename": {
-        this.assertPermission(loaded, "session.update.own");
+        const scope = this.assertSessionScope(loaded, "update", api);
         const input = normalizePluginSessionInput(args[0] ?? {}, "other");
         if (!this.services.session?.rename) {
           throw apiError("UNSUPPORTED", "host api not available: session.rename");
         }
-        return this.services.session.rename(loaded.manifest.id, input);
+        return this.services.session.rename(loaded.manifest.id, { ...input, scope });
       }
       case "session.delete": {
-        this.assertPermission(loaded, "session.delete.own");
+        const scope = this.assertSessionScope(loaded, "delete", api);
         const input = normalizePluginSessionInput(args[0] ?? {}, "other");
         if (!this.services.session?.delete) {
           throw apiError("UNSUPPORTED", "host api not available: session.delete");
         }
-        return this.services.session.delete(loaded.manifest.id, input);
+        return this.services.session.delete(loaded.manifest.id, { ...input, scope });
+      }
+      // Message-level writes (ADR 0339). These have no `.own` form: rewriting a
+      // transcript is only ever an `.all` capability, so each case names its
+      // grant directly.
+      case "session.appendMessage": {
+        const scope = this.assertSessionWriteScope(loaded, "appendMessage", api);
+        const input = normalizePluginMessageWriteInput(args[0] ?? {}, "message");
+        if (!this.services.session?.appendMessage) {
+          throw apiError("UNSUPPORTED", "host api not available: session.appendMessage");
+        }
+        return this.services.session.appendMessage(loaded.manifest.id, { ...input, scope });
+      }
+      case "session.replaceMessages": {
+        const scope = this.assertSessionWriteScope(loaded, "replaceMessages", api);
+        const input = normalizePluginMessageWriteInput(args[0] ?? {}, "messages");
+        if (!this.services.session?.replaceMessages) {
+          throw apiError("UNSUPPORTED", "host api not available: session.replaceMessages");
+        }
+        return this.services.session.replaceMessages(loaded.manifest.id, { ...input, scope });
+      }
+      case "session.deleteMessage": {
+        const scope = this.assertSessionWriteScope(loaded, "deleteMessage", api);
+        const input = normalizePluginMessageWriteInput(args[0] ?? {}, "messageId");
+        if (!this.services.session?.deleteMessage) {
+          throw apiError("UNSUPPORTED", "host api not available: session.deleteMessage");
+        }
+        return this.services.session.deleteMessage(loaded.manifest.id, { ...input, scope });
+      }
+      case "session.truncateFrom": {
+        const scope = this.assertSessionWriteScope(loaded, "truncateFrom", api);
+        const input = normalizePluginMessageWriteInput(args[0] ?? {}, "truncate");
+        if (!this.services.session?.truncateFrom) {
+          throw apiError("UNSUPPORTED", "host api not available: session.truncateFrom");
+        }
+        return this.services.session.truncateFrom(loaded.manifest.id, { ...input, scope });
       }
       case "usage.listTurns": {
         // Read-only completed-turn facts (spec 07-plugins/03 §usage): flat
@@ -4820,7 +4913,11 @@ export class PluginRuntime {
   }
 
   private browserSessionId(pluginId?: string): string | undefined {
-    return pluginId ? this.inFlightTool(pluginId)?.sessionId.trim() || undefined : undefined;
+    const invocation = pluginId ? this.inFlightTool(pluginId) : undefined;
+    if (!invocation) return undefined;
+    const sessionId = invocation.sessionId.trim();
+    if (!sessionId) throw apiError("INVALID_ARGUMENT", "Browser tool calls require a session.");
+    return sessionId;
   }
 
   private async invokeBrowser(
@@ -4895,6 +4992,66 @@ export class PluginRuntime {
       });
       throw apiError("PERMISSION_DENIED", `missing permission: ${perm}`);
     }
+  }
+
+  /**
+   * Resolve and audit the session-data scope for one call (ADR 0339).
+   *
+   * `*.all` is a separate grant from `*.own`, never a widening of it, and it
+   * wins when a manifest declares both. The audit line records the scope that
+   * actually authorised the call, which is what lets an operator tell an
+   * imported-session read from a read of the user's own conversation.
+   */
+  private assertSessionScope(
+    loaded: LoadedPlugin,
+    verb: SessionAccessVerb,
+    api: string,
+  ): SessionAccessScope {
+    this.toolInvocations.current(loaded);
+    const scope = resolveSessionScope(loaded.permissions, verb);
+    if (!scope) {
+      const own = `session.${verb}.own`;
+      const all = `session.${verb}.all`;
+      this.services.audit?.({
+        pluginId: loaded.manifest.id,
+        api,
+        ok: false,
+        errorCode: "PERMISSION_DENIED",
+        required: `${own}|${all}`,
+        ts: Date.now(),
+      });
+      throw apiError("PERMISSION_DENIED", `missing permission: ${own} or ${all}`);
+    }
+    this.auditSessionCall(loaded, api, scope);
+    return scope;
+  }
+
+  /**
+   * Message-level writes have no `.own` form, so the grant is named exactly.
+   * `key` picks the grant from the one policy table in `plugin-session-access`.
+   */
+  private assertSessionWriteScope(
+    loaded: LoadedPlugin,
+    key: SessionWriteApi,
+    api: string,
+  ): SessionAccessScope {
+    this.assertPermission(loaded, SESSION_WRITE_GRANTS[key]);
+    this.auditSessionCall(loaded, api, "all");
+    return "all";
+  }
+
+  private auditSessionCall(
+    loaded: LoadedPlugin,
+    api: string,
+    scope: "own" | "all",
+  ): void {
+    this.services.audit?.({
+      pluginId: loaded.manifest.id,
+      api,
+      ok: true,
+      scope,
+      ts: Date.now(),
+    });
   }
 
   private assertHasOAuthProvider(loaded: LoadedPlugin): void {
@@ -4978,6 +5135,33 @@ export class PluginRuntime {
     return scoped ?? this.services.getWorkspacePath();
   }
 
+  private remoteFsRead(loaded: LoadedPlugin, operation: "list" | "preview", ref: string, options?: PluginFsReadOptions) {
+    this.assertPermission(loaded, "fs.read");
+    const rule = loaded.fsPolicy.read ?? { root: "workspace", scope: [] };
+    return readRemotePluginFiles({
+      workspacePath: this.fsRoot(loaded, rule), currentWorkspacePath: () => this.fsRoot(loaded, rule),
+      isActive: () => this.loaded.get(loaded.manifest.id) === loaded,
+      scope: rule.scope, read: this.services.readRemoteWorkspaceFiles,
+      audit: (entry) => this.services.audit?.({ ...entry, pluginId: loaded.manifest.id }),
+    }, operation, ref, options);
+  }
+
+  private assertFileWorkspace(loaded: LoadedPlugin, options?: PluginFsReadOptions): void {
+    if (!options) return;
+    if (this.loaded.get(loaded.manifest.id) !== loaded) throw apiError("PLUGIN_UNLOADED", "The plugin was unloaded during the file request");
+    const rule = loaded.fsPolicy.read ?? { root: "workspace", scope: [] };
+    if (this.fsRoot(loaded, rule) !== options.workspacePath) throw apiError("WORKSPACE_CHANGED", "The file view's workspace has changed");
+  }
+
+  private captureFileWorkspace(loaded: LoadedPlugin, options?: PluginFsReadOptions): PluginFsReadOptions {
+    this.assertPermission(loaded, "fs.read");
+    this.assertFileWorkspace(loaded, options);
+    const rule = loaded.fsPolicy.read ?? { root: "workspace", scope: [] };
+    const workspacePath = this.fsRoot(loaded, rule);
+    if (!workspacePath) throw apiError("NOT_FOUND", "No workspace is open");
+    return { workspacePath };
+  }
+
   /**
    * Resolve one file request and decide whether it may proceed.
    *
@@ -5033,6 +5217,7 @@ export class PluginRuntime {
     }
     const rule: PluginFsRule = loaded.fsPolicy[mode] ?? { root: "workspace", scope: [] };
     const root = this.fsRoot(loaded, rule);
+    assertLocalPluginRoot(root);
     if (!root) {
       throw apiError(
         "NOT_FOUND",
@@ -5110,6 +5295,7 @@ export class PluginRuntime {
     loaded: LoadedPlugin,
     requestPath: string,
   ): Promise<{ full: string; rel: string; root: string } | null> {
+    assertLocalPluginRoot(this.fsRoot(loaded, loaded.fsPolicy.read ?? { root: "workspace", scope: [] }));
     if (!isAbsolute(String(requestPath ?? ""))) return null;
     const rule: PluginFsRule = loaded.fsPolicy.read ?? { root: "workspace", scope: [] };
     if (rule.root !== "workspace") return null;
@@ -5603,6 +5789,9 @@ export class PluginRuntime {
           return { path, name: path.split(/[\\/]/).filter(Boolean).at(-1) || path };
         },
       },
+      projects: {
+        list: async () => this.services.listProjects?.() ?? [],
+      },
       desktop: {
         listOperations: async () => {
           this.assertPermission(loaded, "desktop.control");
@@ -5826,7 +6015,11 @@ export class PluginRuntime {
             await handle.close().catch(() => {});
           }
         },
-        readPreview: async (pathFromRoot: string) => {
+        readPreview: async (pathFromRoot: string, options?: PluginFsReadOptions) => {
+          const admitted = this.captureFileWorkspace(loaded, options);
+          const remote = await this.remoteFsRead(loaded, "preview", pathFromRoot, admitted);
+          if (remote && remote.kind !== "list") return remote;
+          this.assertFileWorkspace(loaded, admitted);
           const { full, rel } = await this.resolveFsRequest(
             loaded,
             "read",
@@ -5844,6 +6037,7 @@ export class PluginRuntime {
             throw apiError("INVALID_ARGUMENT", "only files can be previewed");
           }
           const preview = await previewFile(full, rel);
+          this.assertFileWorkspace(loaded, admitted);
           this.services.audit?.({
             pluginId,
             api: "fs.readPreview",
@@ -5995,11 +6189,15 @@ export class PluginRuntime {
          * paths, denied names, skipped heavy directories — because a listing is
          * a read: what a plugin may not open, it may not learn the name of.
          */
-        list: async (pathFromRoot: string) => {
+        list: async (pathFromRoot: string, options?: PluginFsReadOptions) => {
+          const admitted = this.captureFileWorkspace(loaded, options);
+          const remote = await this.remoteFsRead(loaded, "list", pathFromRoot, admitted);
+          if (remote?.kind === "list") return remote.entries;
+          this.assertFileWorkspace(loaded, admitted);
           this.assertPermission(loaded, "fs.read");
           const rule = loaded.fsPolicy.read ?? { root: "workspace", scope: [] };
-          const root = this.fsRoot(loaded, rule);
-          if (!root) throw apiError("NOT_FOUND", "No workspace is open");
+          const root = admitted.workspacePath;
+          assertLocalPluginRoot(root);
           const rel = normalizeFsPath(String(pathFromRoot ?? ""));
           if (rel.split("/").includes("..")) {
             throw apiError("INVALID_ARGUMENT", "path must stay inside the root");
@@ -6023,7 +6221,7 @@ export class PluginRuntime {
             mtimeMs?: number;
           }> = [];
           for (const name of names.sort()) {
-            if (entries.length >= MAX_LIST_ENTRIES) break;
+            if (entries.length >= PLUGIN_FS_LIST_MAX_ENTRIES) break;
             const childRel = rel ? `${rel}/${name}` : name;
             const full = join(dir, name);
             if (isDeniedFsPath(childRel)) continue;
@@ -6086,6 +6284,7 @@ export class PluginRuntime {
           this.assertPermission(loaded, "fs.read");
           const rule = loaded.fsPolicy.read ?? { root: "workspace", scope: [] };
           const root = this.fsRoot(loaded, rule);
+          assertLocalPluginRoot(root);
           if (!root) throw apiError("NOT_FOUND", "No workspace is open");
           const matches: string[] = [];
           const visit = (dir: string, rel = "") => {
@@ -6364,7 +6563,7 @@ export class PluginRuntime {
             action === "reload" ||
             action === "stop"
           ) {
-            this.services.browser.action(action, browserContext?.sessionId, browserContext?.tabId);
+            this.services.browser.action(action, this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
           }
         },
         setBounds: (hole: unknown) => {
@@ -6387,14 +6586,14 @@ export class PluginRuntime {
           if (!this.services.browser) {
             throw apiError("UNAVAILABLE", "browser host missing");
           }
-          return this.services.browser.getState();
+          return this.services.browser.getState(this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
         openExternal: () => {
           this.assertPermission(loaded, "browser.cdp");
           if (!this.services.browser) {
             throw apiError("UNAVAILABLE", "browser host missing");
           }
-          this.services.browser.openExternal(browserContext?.sessionId, browserContext?.tabId);
+          this.services.browser.openExternal(this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
           this.services.audit?.({
             pluginId,
             api: "browser.openExternal",
@@ -6407,7 +6606,7 @@ export class PluginRuntime {
           if (!this.services.browser) {
             throw apiError("UNAVAILABLE", "browser host missing");
           }
-          return this.services.browser.snapshot();
+          return this.services.browser.snapshot(this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
         screenshot: async (input?: { fullPage?: boolean }) => {
           this.assertPermission(loaded, "browser.cdp");
@@ -6416,7 +6615,8 @@ export class PluginRuntime {
           }
           return this.services.browser.screenshot(
             input,
-            this.browserSessionId(pluginId),
+            this.browserSessionId(pluginId) ?? browserContext?.sessionId,
+            browserContext?.tabId,
           );
         },
         click: async (input: string | { uid?: string }) => {
@@ -6425,7 +6625,7 @@ export class PluginRuntime {
             throw apiError("UNAVAILABLE", "browser host missing");
           }
           const uid = typeof input === "string" ? input : String(input?.uid ?? "");
-          await this.services.browser.click(uid);
+          await this.services.browser.click(uid, this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
         fill: async (
           input: string | { uid?: string; text?: string },
@@ -6437,7 +6637,7 @@ export class PluginRuntime {
           }
           const uid = typeof input === "string" ? input : String(input?.uid ?? "");
           const text = typeof input === "string" ? String(textArg ?? "") : String(input?.text ?? "");
-          await this.services.browser.fill(uid, text);
+          await this.services.browser.fill(uid, text, this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
         evaluate: async (input: string | { expression?: string }) => {
           this.assertPermission(loaded, "browser.cdp");
@@ -6451,7 +6651,7 @@ export class PluginRuntime {
             ok: true,
             ts: Date.now(),
           });
-          return this.services.browser.evaluate(expression);
+          return this.services.browser.evaluate(expression, this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
         console: (input?: number | { limit?: number }) => {
           this.assertPermission(loaded, "browser.cdp");
@@ -6459,7 +6659,7 @@ export class PluginRuntime {
             throw apiError("UNAVAILABLE", "browser host missing");
           }
           const limit = typeof input === "number" ? input : input?.limit;
-          return this.services.browser.console(limit);
+          return this.services.browser.console(limit, this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
         cdp: async (
           input: string | { method?: string; params?: unknown },
@@ -6478,7 +6678,7 @@ export class PluginRuntime {
             ts: Date.now(),
             method,
           });
-          return this.services.browser.cdp(method, params);
+          return this.services.browser.cdp(method, params, this.browserSessionId(pluginId) ?? browserContext?.sessionId, browserContext?.tabId);
         },
       },
     };

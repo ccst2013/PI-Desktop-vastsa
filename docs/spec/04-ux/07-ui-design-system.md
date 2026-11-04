@@ -724,6 +724,18 @@ CSS custom properties on `:root` (D146):
 Interactive surfaces should reference these variables instead of hard-coded
 millisecond literals when practical.
 
+One duration sits outside this scale, and only one:
+
+| Token | CSS variable | Duration | Usage |
+|---|---|---|---|
+| `startup-reveal` | `--motion-startup-reveal` | 1000ms | Boot-animation reveal only (§8.3.1, D679) |
+
+The scale above is sized for in-flow UI feedback — a control answering a
+click. The reveal is the end of a cinematic the user supplied, so it is sized
+in that register instead. It is used by `.startup-animation` and nothing else,
+and it must stay matched to `STARTUP_ANIMATION_REVEAL_MS` in
+`@pi-desktop/shared`. New surfaces do not reference it.
+
 ### 8.2 Easing
 
 CSS custom properties on `:root` (D146):
@@ -763,6 +775,32 @@ plain status text:
 
 This is boot-state feedback, not decorative chrome.
 
+#### 8.3.1 User-supplied startup animation (D679 / ADR 0338)
+
+A video in `<dataDir>/startup/` replaces the splash above for that launch
+(`StartupAnimation`, `data-testid="startup-animation"`). Without such a file
+the splash is unchanged, which is what every existing installation gets.
+
+- One layer, opaque `#000` for its whole life: the video sits on it, and once
+  the video is gone the same black is the mask the shell fades in from, so there
+  is no seam between the last frame and the mask. Literal black rather than
+  `--ds-bg-primary` so a video's own letterboxing and fades meet the same colour
+  under either theme.
+- `object-fit: cover`; the frame is filled and the edges are cropped, so the
+  settings copy tells the user to keep the subject centred.
+- The element is inert and silent: `muted`, `playsInline`, no controls, no
+  picture-in-picture, not focusable, `aria-hidden`. Accessible status copy comes
+  from `app.starting`, as the splash's does.
+- Sequence: play → opaque black hold until `ready` → `--motion-startup-reveal`
+  (1000ms) opacity fade with `pointer-events: none`, so the shell takes input
+  for the whole fade rather than after it.
+- A hold longer than 3s adds the splash's indeterminate bar, so an opaque mask
+  is not mistaken for a hang.
+- Reduced motion does not play it at all — a shorter cinematic is still a
+  cinematic, and the OS request is the opt-out.
+- Unlike the glass splash, this surface is opaque, so it needs no macOS rule
+  hiding the mounted shell beneath it.
+
 ### 8.4 Overlay / floating surface enter
 
 Dialogs, search spotlight, and modal backdrops use shared enter keyframes:
@@ -799,7 +837,7 @@ are also explicitly suppressed or collapsed to a static state.
 - No parallax
 - No continuous background animations (particles, waves); the bounded
   foreground mascot loop is the explicit empty-home exception
-- No shimmer/skeleton animations longer than 1s loop — use simple fade-in for loading states
+- No shimmer/skeleton animations longer than 1s loop — use simple fade-in for loading states. Exception: the transcript Thinking indicator's whole-run TextShimmer runs 1.2s with a 220ms fade (ADR turn-process-and-thinking-display); it is not a per-glyph loop and becomes static under reduced motion.
 - No bounce effects
 - No multi-second boot theatrical sequences; splash exits as soon as ready (+ min dwell)
 
@@ -1247,7 +1285,7 @@ Full component contract and usage rules: [08-component-spec.md §17](08-componen
 
 | Property | Value |
 |---|---|
-| Position | top-center viewport, 16px from the top edge, `width: min(360px, 100vw − 32px)` |
+| Position | 16px from the top edge; centered in the main-content safe area when the in-flow shell is visible, falling back to the viewport when no main-content anchor exists; `width: min(360px, safe area − 32px)` |
 | Surface | `bg-elevated-opaque` + 1px `border-subtle` + `shadow-dialog` (same family as floating menus) |
 | Radius | radius-md-plus |
 | Font | text-md, leading-compact-plus |
@@ -1459,7 +1497,7 @@ adjacent form inputs; dense surfaces may override that metric locally.
 - Floating composer plate: Codex elevated-primary (`#212121f5` / `color-mix(gray-800 96%, transparent)`) with standard elevation-prominent (`0 0 0 .5px` stroke + `0 3px 7.5px #0000000a` + `0 0 20px #0000000d`); no heavier night-only lift
 - Light workspace chips capsule: elevated gray `#f4f4f4` (not pure white-on-white)
 - Combined workspace chips: elevated translucent plate over main, not flat main gray
-- Stage Manager (macOS only): host re-asserts min bounds while collapsed (permanent watchdog). The watchdog does not run on Windows/Linux, so no platform re-layers its own window unprompted (D447)
+- Stage Manager (macOS only): host re-asserts min bounds while collapsed (permanent watchdog). The watchdog and temporary recovery pin are macOS-only; Windows/Linux bounds recovery stays at the normal window layer so switching to another app never leaves PI-Desktop above it (D447).
 
 ## Destination pages
 

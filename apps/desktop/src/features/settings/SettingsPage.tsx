@@ -37,12 +37,14 @@ import { ModelConfigPage } from "../../components/settings/ModelConfigPage";
 import { KeyboardShortcutsSection } from "../../components/settings/KeyboardShortcutsSection";
 import { FontFamilyRow } from "../../components/settings/FontFamilyRow";
 import { ShowThinkingRow } from "../../components/settings/ShowThinkingRow";
-import { KeepCommandsExpandedRow } from "../../components/settings/KeepCommandsExpandedRow";
+import { TranscriptDisplayModeRow } from "../../components/settings/TranscriptDisplayModeRow";
+import { RadialMenuSettings } from "../../components/settings/RadialMenuSettings";
 import { FontSizeRow } from "../../components/settings/FontSizeRow";
 import { LanguageRow } from "../../components/settings/LanguageRow";
 import { SettingsMenuSelect } from "../../components/settings/SettingsMenuSelect";
 import { ThemeRow } from "../../components/settings/ThemeRow";
 import { MacosWindowTranslucencyRow } from "../../components/settings/MacosWindowTranslucencyRow";
+import { StartupAnimationRows } from "../../components/settings/StartupAnimationRows";
 import { NetworkProxySection } from "../../components/settings/NetworkProxySection";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { AgentSkillsPage } from "../../components/settings/AgentSkillsPage";
@@ -418,6 +420,7 @@ export function SettingsPage() {
                 {platform === "darwin" && (
                   <MacosWindowTranslucencyRow settings={settings} saveSettings={saveSettings} />
                 )}
+                <StartupAnimationRows settings={settings} saveSettings={saveSettings} />
               </SettingsCard>
 
               <SettingsCard title={t("settings.sidebar")}>
@@ -468,6 +471,26 @@ export function SettingsPage() {
                   />
                 </SettingsRow>
               </SettingsCard>
+
+              <SettingsCard title={t("settings.scheduledTasks")}>
+                <SettingsRow
+                  title={t("settings.scheduledTasks")}
+                  description={t("settings.scheduledTasksDesc")}
+                >
+                  <SettingsToggle
+                    checked={settings.scheduledTasksEnabled !== false}
+                    label={t("settings.scheduledTasks")}
+                    onChange={() => void saveSettings({
+                      scheduledTasksEnabled: settings.scheduledTasksEnabled === false,
+                    })}
+                  />
+                </SettingsRow>
+              </SettingsCard>
+
+              <RadialMenuSettings
+                settings={settings}
+                saveSettings={saveSettings}
+              />
 
               <NetworkProxySection settings={settings} saveSettings={saveSettings} />
 
@@ -547,7 +570,7 @@ export function SettingsPage() {
                 <CommandShellRow settings={settings} saveSettings={saveSettings} />
                 <LinkOpenTargetRow settings={settings} saveSettings={saveSettings} />
                 <ShowThinkingRow settings={settings} saveSettings={saveSettings} />
-                <KeepCommandsExpandedRow settings={settings} saveSettings={saveSettings} />
+                <TranscriptDisplayModeRow settings={settings} saveSettings={saveSettings} />
                 <ContextUsageDisplayRow
                   settings={settings}
                   saveSettings={saveSettings}
@@ -580,6 +603,20 @@ export function SettingsPage() {
                     checked={settings.smoothStreaming !== false}
                     label={t("settings.smoothStreaming")}
                     onChange={() => void saveSettings({ smoothStreaming: !(settings.smoothStreaming !== false) })}
+                  />
+                </SettingsRow>
+                <SettingsRow
+                  title={t("settings.inlineVisualizations")}
+                  description={t("settings.inlineVisualizationsDesc")}
+                >
+                  <SettingsToggle
+                    checked={settings.inlineVisualizations === true}
+                    label={t("settings.inlineVisualizations")}
+                    onChange={() =>
+                      void saveSettings({
+                        inlineVisualizations: settings.inlineVisualizations !== true,
+                      })
+                    }
                   />
                 </SettingsRow>
                 <LargePasteThresholdRow

@@ -40,16 +40,18 @@ work-panel tab already carries was honoured by main for `pi.browser` only.
      first, the session scratch store second, the attachment store last** — and
      the first root that answers wins, so the project is searched to exhaustion
      before the scratch store is considered;
-   - inside one root, an exact path beats a shorthand; among shorthands the
-     longest matching tail wins, then the shallowest path, so `src/dir/a.ts`
-     beats a second `dir/a.ts` buried deeper;
+   - inside one root, an exact path beats a shorthand; a shorthand resolves
+     only when its complete supplied suffix uniquely identifies one safe file.
+     It never degrades to a shorter suffix, and ambiguous matches resolve to
+     nothing;
    - the files panel's ignore set applies, so a dependency tree is never
      searched;
    - a reference that matches nothing opens **nothing** and reports itself. No
      empty panel, no blank browser page.
 2. **The destination follows where the reference resolved.** A project file
-   opens in the `pi.file-manager` view, except a `path:line` reference, which
-   opens in the host's read-only `file:` tab so the requested source line can
+   opens in the `pi.file-manager` view, except a positioned reference (`:line`,
+   `:line:column`, `:line-range` or `#Lline[-Lend]`), which opens in the host's
+   read-only `file:` tab so the requested source line can
    be brought into view. The bundled view accepts opaque path locations and has
    no line-navigation contract; this keeps the path unchanged and uses the
    host viewer's existing scroll support. A file in the session scratch or
@@ -90,6 +92,11 @@ work-panel tab already carries was honoured by main for `pi.browser` only.
    This is deliberate and is why the plugin's `safetyNotes` states the exception
    instead of claiming the project-root containment still covers everything it
    reads.
+   ADR 0339 drops root containment for the host as well: `fs/resolveRef`,
+   `fs/read`, `fs/reveal`, and `fs/open` open an exact absolute path outside the
+   managed roots when it names an existing regular file. The host applies no
+   deny list, because its file view only shows the file to the user who clicked
+   it; the plugin keeps its own, since plugin code receives the bytes.
 5. **The bundled copy moves to v0.4.0** through ADR 0241's re-sync procedure, and
    the same release is published to the plugin center: the marketplace and the
    bundled copy ship the same bytes.

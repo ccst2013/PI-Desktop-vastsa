@@ -127,9 +127,18 @@ Non-official DeepSeek endpoints also set `requiresNonEmptyReasoningReplay` so
 missing reasoning is filled with a documented placeholder instead of `""`
 (OpenCode / third-party relays reject empty echoes after compaction; see
 ADR 0256 / #296). Official `deepseek.com` rows keep empty-string fill (#223).
-Both official and relay rows set `supportsReasoningEffort: false`; DeepSeek
-does not accept the generic OpenAI `reasoning_effort` request field even when
-thinking is enabled. The overlay does not change `thinkingFormat`.
+Every replayed assistant row carries one reasoning field, named after the
+newest row with real reasoning; real reasoning under another name is moved to
+it, so only rows with no reasoning are filled, and a leading echo of the
+placeholder in stored thinking is neither shown nor replayed (D677, #1945).
+Relay rows set `supportsReasoningEffort: false` because DeepSeek-family relays
+were reported rejecting the generic OpenAI `reasoning_effort` field (#1664).
+Official `deepseek.com` rows leave the flag to pi-ai, which sends
+`reasoning_effort` (low / high / max) next to `thinking: {type: "enabled"}` as
+DeepSeek documents, so the selected thinking level reaches the wire (#1821,
+D672). An explicit per-model `supportsReasoningEffort` selection (`send` or
+`omit`) still overrides this automatic rule on either kind of row. The overlay
+does not change `thinkingFormat`.
 
 Anthropic Messages requests set `forceAdaptiveThinking: true` when the
 models.dev record publishes a reasoning `effort` option and no
@@ -351,6 +360,7 @@ type ModelBinding = {
   defaultThinkingLevel: SessionThinkingLevel | null
   thinkingProtocol?: "legacy" | "adaptive"
   availableForSubagents?: boolean // opt-in for AI-driven delegation
+  fastModeAllowed?: boolean // opt-in for the session /fast switch (ADR 0334)
 }
 
 type SelectedModelRef = {
@@ -382,6 +392,20 @@ runtime consumers. Conversation-level model switching and routing across the
 array remain future work. A legacy provider with only `defaultModelId` is
 materialized as one fallback binding on host read and upgraded to `models` on
 the next provider write.
+
+`ModelBinding.fastModeAllowed` (boolean, default false, ADR 0334): lets the
+session `/fast` switch request OpenAI's priority service tier
+(`service_tier: "priority"`) for this model. Model settings enable the checkbox
+only for Responses wires: `openai_codex_responses` (ChatGPT subscription; the
+tier spends plan limits faster) and `responses` (billed per token at the tier's
+higher price; a relay may ignore or rebill the field). The launcher sends
+`fastMode: true` to the sidecar only when the session switch is on and the
+stored binding allows it; the runtime adds the field to main-turn requests whose
+resolved wire is `openai-codex-responses` or `openai-responses`. Subagents,
+compaction, and one-shot requests keep the default tier. A trusted extension
+that moves the runtime to one of its own models clears the switch, because that
+model has no binding to opt in; the next launch re-applies it from the
+session's stored binding.
 
 `ModelBinding.availableForSubagents` (boolean, default false): opt-in flag that
 makes the model available for AI-driven subagent delegation. When enabled, the

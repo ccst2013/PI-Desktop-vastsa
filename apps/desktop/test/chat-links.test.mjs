@@ -155,6 +155,9 @@ test("parseFileRef accepts pathy tokens and strips line refs", () => {
   assert.equal(parseFileRef("apps/desktop/src/App.tsx"), "apps/desktop/src/App.tsx");
   assert.equal(parseFileRef("src/main.rs:42"), "src/main.rs");
   assert.equal(parseFileRef("src/main.rs:42:7"), "src/main.rs");
+  assert.equal(parseFileRef("src/main.rs:42-44"), "src/main.rs");
+  assert.equal(parseFileRef("src/main.rs#L42"), "src/main.rs");
+  assert.equal(parseFileRef("src/main.rs#L42-L44"), "src/main.rs");
   assert.equal(parseFileRef("./scripts/build.sh"), "./scripts/build.sh");
   assert.equal(parseFileRef("/abs/path/file.ts"), "/abs/path/file.ts");
   assert.equal(parseFileRef("docs/Makefile"), "docs/Makefile");
@@ -879,13 +882,27 @@ test("URL link creation is capped per conversion without changing source text", 
   );
 });
 
-test("parseFileRefPosition keeps :line[:col] that parseFileRef strips", () => {
+test("parseFileRefPosition handles line, column, range, and GitHub anchors", () => {
   assert.deepEqual(parseFileRefPosition("src/main.rs:42"), { line: 42 });
   assert.deepEqual(parseFileRefPosition("src/main.rs:42:7"), { line: 42, column: 7 });
+  assert.deepEqual(parseFileRefPosition("src/main.rs:42-44"), { line: 42 });
+  assert.deepEqual(parseFileRefPosition("src/main.rs#L42"), { line: 42 });
+  assert.deepEqual(parseFileRefPosition("src/main.rs#L42-L44"), { line: 42 });
   assert.deepEqual(parseFileRefPosition("src/main.rs:42."), { line: 42 });
   assert.deepEqual(parseFileRefPosition("src/main.rs:42:7,"), { line: 42, column: 7 });
   assert.equal(parseFileRefPosition("src/main.rs"), null);
   assert.equal(parseFileRefPosition("src/main.rs:0"), null);
+  assert.equal(parseFileRefPosition("src/main.rs:42-41"), null);
+});
+
+test("splitChatText preserves common line-reference formats as positioned file chips", () => {
+  for (const [suffix, line] of [[":42-44", 42], ["#L43", 43], ["#L44-L48", 44]]) {
+    const source = `See src/main.rs${suffix}.`;
+    const segments = splitChatText(source, ROOT);
+    const target = segments.find((segment) => segment.kind === "target");
+    assert.deepEqual(target?.target, { kind: "file", path: "src/main.rs", line }, source);
+    assert.equal(segments.map((segment) => segment.text).join(""), source);
+  }
 });
 
 test("resolvePreviewTarget carries line/col on file chips (#681)", () => {
@@ -899,6 +916,16 @@ test("resolvePreviewTarget carries line/col on file chips (#681)", () => {
     path: "src/a.ts",
     line: 42,
     column: 7,
+  });
+  assert.deepEqual(resolvePreviewTarget("src/a.ts:42-48", ROOT), {
+    kind: "file",
+    path: "src/a.ts",
+    line: 42,
+  });
+  assert.deepEqual(resolvePreviewTarget("src/a.ts#L43-L48", ROOT), {
+    kind: "file",
+    path: "src/a.ts",
+    line: 43,
   });
   assert.deepEqual(resolvePreviewTarget("src/a.ts:42:7.", ROOT), {
     kind: "file",
@@ -929,4 +956,33 @@ test("session links segment as their own target", () => {
   // A remote id and a bare scheme are not local conversations.
   assert.equal(resolvePreviewTarget("pi-desktop://session/remote:abc", ROOT), null);
   assert.equal(resolvePreviewTarget("pi-desktop://session/", ROOT), null);
+});
+
+test("an absolute Markdown link to an extensionless file still reaches the file opener", () => {
+  // The link destination is explicit, so the extension heuristic that keeps
+  // prose from turning into chips does not apply. The main process decides
+  // whether the file exists and may open (ADR 0339).
+  for (const [source, root, expected] of [
+    ["[config](</Users/me/.ssh/config>)", null, ["/Users/me/.ssh/config", undefined]],
+    ["[Makefile](</tmp/build dir/Makefile>)", "/Users/me/project", ["/tmp/build dir/Makefile", undefined]],
+    ["[LICENSE](<D:/vendor/LICENSE>)", "D:/person", ["D:/vendor/LICENSE", undefined]],
+    ["[notes](</tmp/notes:4>)", null, ["/tmp/notes", undefined, undefined, { line: 4, column: undefined }]],
+  ]) {
+    const markup = renderSanitizedMarkdown(source);
+    const href = markup.match(/<a href="([^"]+)"/)?.[1];
+    assert.ok(href, source);
+    const calls = [];
+    let prevented = false;
+    const handled = handleMarkdownFileLinkClick(
+      { preventDefault: () => { prevented = true; } }, href, root, undefined,
+      (...args) => calls.push(args));
+    assert.equal(handled, true, source);
+    assert.equal(prevented, true, source);
+    assert.deepEqual(calls, [expected], source);
+  }
+  // A home path is not an absolute link destination and opens nothing.
+  const calls = [];
+  assert.equal(handleMarkdownFileLinkClick({ preventDefault() {} }, "~/.ssh/config", null, undefined,
+    (...args) => calls.push(args)), false);
+  assert.deepEqual(calls, []);
 });
