@@ -12,6 +12,7 @@ import { registerAppIpc } from "./app-ipc";
 import { registerAccountIpc } from "./account-ipc";
 import type { AccountService } from "../account/service";
 import { registerDiagnosticsIpc } from "./diagnostics-ipc";
+import { registerStartupAnimationIpc } from "./startup-animation-ipc";
 import { registerMarketIpc } from "./market-ipc";
 import { registerMcpIpc } from "./mcp-ipc";
 import type { McpOAuthManager } from "../mcp-oauth";
@@ -559,6 +560,8 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     isDeveloperMode,
     getMainWindow,
   });
+
+  registerStartupAnimationIpc({ registrar, dataDir, stripWinLongPrefix });
 
 
   return async (channel: string, args: readonly unknown[] = []) => {
