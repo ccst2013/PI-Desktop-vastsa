@@ -112,6 +112,31 @@ async function runTurn(runner: TrustedExtensionRunner, prompt: string): Promise<
   await runner.emit("agent_settled", { type: "agent_settled" });
 }
 
+/** A turn that also makes the model request the generation is recorded from. */
+async function runProviderTurn(
+  runner: TrustedExtensionRunner,
+  prompt: string,
+  system: string,
+): Promise<void> {
+  await runner.emit("session_start", { type: "session_start", reason: "startup" });
+  await runner.emit("before_agent_start", {
+    type: "before_agent_start",
+    messageType: "user",
+    prompt,
+    systemPrompt: system,
+    systemPromptOptions: {},
+  });
+  await runner.emit(
+    "before_provider_request",
+    {
+      type: "before_provider_request",
+      payload: { model: "stub-model", messages: [{ role: "system", content: system }] },
+    },
+    (_acc: unknown, value: unknown) => value,
+  );
+  await runner.emit("agent_settled", { type: "agent_settled" });
+}
+
 function writePluginSettings(settings: Record<string, unknown>): void {
   const dir = join(dataDir, "plugins", "data", PLUGIN_DATA_DIR);
   mkdirSync(dir, { recursive: true });
@@ -136,6 +161,41 @@ function lastPromptMeta(): { truncated: boolean; orig_len: number; kept_len?: nu
     }
   }
   throw new Error("no user_text_meta attribute in the export");
+}
+
+/**
+ * The generation the last export carried, as Langfuse stores it: the input that
+ * starts with a system message, and the metadata next to it.
+ */
+function lastSystemGeneration(): {
+  input: { role: string; content: string }[];
+  meta?: { truncated: boolean; orig_len: number; kept_len?: number };
+} {
+  const body = sink.bodies[sink.bodies.length - 1];
+  if (!body) throw new Error("the extension exported nothing");
+  const payload = JSON.parse(body) as {
+    resourceSpans?: { scopeSpans?: { spans?: { attributes?: { key: string; value: { stringValue?: string } }[] }[] }[] }[];
+  };
+  for (const resource of payload.resourceSpans ?? []) {
+    for (const scope of resource.scopeSpans ?? []) {
+      for (const span of scope.spans ?? []) {
+        const attributes = span.attributes ?? [];
+        const input = attributes.find(
+          (a) => a.key === "langfuse.observation.input" && a.value.stringValue?.includes('"role":"system"'),
+        );
+        if (!input?.value.stringValue) continue;
+        // The SDK flattens metadata into one attribute per key.
+        const metaAttribute = attributes.find((a) => a.key.endsWith("metadata.system_prompt_meta"));
+        return {
+          input: JSON.parse(input.value.stringValue) as { role: string; content: string }[],
+          meta: metaAttribute?.value.stringValue
+            ? (JSON.parse(metaAttribute.value.stringValue) as { truncated: boolean; orig_len: number; kept_len?: number })
+            : undefined,
+        };
+      }
+    }
+  }
+  throw new Error("no generation input starting with a system message in the export");
 }
 
 beforeEach(async () => {
@@ -197,5 +257,30 @@ describe("the import-time layer", () => {
     // The same spec id re-uses the loaded module, so the constant is frozen at
     // the value the process started with: a reload does not apply this row.
     expect(lastPromptMeta().kept_len).toBe(50);
+  });
+
+  it("budgets the system prompt it now records with the same constant", async () => {
+    // The panel value is 50 in this file, so a 400-character system prompt must
+    // reach the trace cut to 50 characters - and say that it was cut.
+    const marker = "s".repeat(400);
+    writePluginSettings({
+      enabled: true,
+      baseUrl: sink.origin,
+      publicKey: "pk-lf-layer",
+      secretKey: "sk-lf-layer",
+      userId: "",
+      environment: "",
+      release: "",
+      uploadImages: true,
+      maxChars: 50,
+    });
+    const runner = newRunner("pi.langfuse.layers.system");
+    await runner.load();
+    await runProviderTurn(runner, "summarise the readme", marker);
+    await runner.dispose();
+
+    const generation = lastSystemGeneration();
+    expect(generation.input[0]).toEqual({ role: "system", content: "s".repeat(50) });
+    expect(generation.meta).toMatchObject({ truncated: true, orig_len: 400, kept_len: 50 });
   });
 });

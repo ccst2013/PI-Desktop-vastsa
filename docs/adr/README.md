@@ -395,6 +395,7 @@ Each ADR includes:
 | 0332 | [macOS keeps its translucent window surface with an opaque opt-out](0332-macos-opaque-window-surface.md) | Accepted (D665, amended by D666 and D667; supersedes the macOS vibrancy window backing from D348; issue #1064) |
 | 0334 | [Langfuse tracing ships as an opt-in example plugin](0334-langfuse-ships-as-an-opt-in-example-plugin.md) | Accepted |
 | 0335 | [Langfuse settings are editable in the plugin's settings sheet](0335-langfuse-settings-editable-in-the-plugin-sheet.md) | Accepted |
+| 0340 | [The Langfuse plugin records the system prompt](0340-langfuse-captures-the-system-prompt.md) | Accepted (supersedes ADR 0334 §4 for this one patch) |
 | gen-ui-inline-visualization | [Inline generative UI visualizations](gen-ui-inline-visualization.md) | Accepted (D671) |
 | 0337 | [Keep the request prefix stable across delegation settlements](0337-stable-prompt-prefix-across-delegation.md) | Accepted (supersedes ADR 0279 §9) |
 | 0338 | [A user-supplied video owns the boot surface, served over a host-owned scheme](0338-user-supplied-startup-animation.md) | Accepted (D679) |

@@ -137,7 +137,7 @@ async function startSink(): Promise<typeof sink> {
   };
 }
 
-function bridge() {
+function bridge(options: { systemPrompt?: string } = {}) {
   const statuses: Array<{ key: string; text: string }> = [];
   return {
     statuses,
@@ -153,7 +153,7 @@ function bridge() {
       hasPendingMessages: () => false,
       getContextUsage: () => undefined,
       compact: () => {},
-      getSystemPrompt: () => "",
+      getSystemPrompt: () => options.systemPrompt ?? "",
       getActiveTools: () => [],
       getAllTools: () => [],
       setActiveTools: () => {},
@@ -186,8 +186,8 @@ function bridge() {
  * process and its import-time constants, and re-runs the factory. A new
  * `specId` imports the module again, which is what an app restart does.
  */
-function newRunner(specId: string) {
-  const { bridge: hostBridge, statuses } = bridge();
+function newRunner(specId: string, options: { systemPrompt?: string } = {}) {
+  const { bridge: hostBridge, statuses } = bridge(options);
   const runner = new TrustedExtensionRunner({
     specs: [
       {
@@ -242,6 +242,42 @@ async function runTurn(
   await runner.emit("agent_settled", { type: "agent_settled" });
 }
 
+/**
+ * One turn that also makes a model request, which is where the extension opens
+ * an LLM Call observation. `payload` is the request body the provider received.
+ */
+async function runTracedTurn(
+  runner: TrustedExtensionRunner,
+  options: { prompt?: string; systemPrompt?: string; payload?: unknown } = {},
+): Promise<void> {
+  const prompt = options.prompt ?? "summarise the readme";
+  await runner.emit("session_start", { type: "session_start", reason: "startup" });
+  await runner.emit("before_agent_start", {
+    type: "before_agent_start",
+    messageType: "user",
+    prompt,
+    systemPrompt: options.systemPrompt ?? "",
+    systemPromptOptions: {},
+  });
+  await runner.emit(
+    "before_provider_request",
+    { type: "before_provider_request", payload: options.payload ?? { model: "stub-model" } },
+    (_acc: unknown, value: unknown) => value,
+  );
+  await runner.emit("message_end", {
+    type: "message_end",
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "the readme describes an opt-in tracer" }],
+      model: "stub-model",
+      provider: "stub-provider",
+      stopReason: "stop",
+      usage: { input: 12, output: 8, totalTokens: 20 },
+    },
+  });
+  await runner.emit("agent_settled", { type: "agent_settled" });
+}
+
 function writeConfig(config: Record<string, unknown>): void {
   writeFileSync(join(agentDir, "langfuse.json"), `${JSON.stringify(config, null, 2)}\n`);
 }
@@ -276,6 +312,20 @@ function attributeValue(request: Request, suffix: string): string | undefined {
   const found = request.attributes.find((a) => a.key.endsWith(suffix));
   const value = found?.value as { stringValue?: string } | undefined;
   return value?.stringValue;
+}
+
+/** Every observation input a request exported, serialized as Langfuse stores it. */
+function exportedInputs(request: Request): string[] {
+  return request.attributes
+    .filter((attribute) => attribute.key === "langfuse.observation.input")
+    .map((attribute) => String((attribute.value as { stringValue?: string }).stringValue ?? ""));
+}
+
+/** Every value of an attribute whose key ends with `suffix`. */
+function attributeValues(request: Request, suffix: string): string[] {
+  return request.attributes
+    .filter((attribute) => attribute.key.endsWith(suffix))
+    .map((attribute) => String((attribute.value as { stringValue?: string }).stringValue ?? ""));
 }
 
 /** The panel's full row set, as the host would write it after any save. */
@@ -497,4 +547,119 @@ describe("settings edited in the plugin sheet", () => {
     expect(sink.requests).toEqual([]);
     expect(statuses).toContainEqual({ key: "langfuse", text: "langfuse: off (no keys)" });
   });
+
+/**
+ * The LLM Call input (ADR 0340).
+ *
+ * Upstream 0.1.2 records only the user prompt or the latest tool results, so a
+ * generation cannot answer "what was the model told". These tests drive the real
+ * artifact through the events the sidecar emits and read the exported span.
+ */
+describe("the LLM Call input", () => {
+  const config = { publicKey: "pk-lf-test-public", secretKey: "sk-lf-test-secret" };
+
+  it("records the system prompt the provider request carried", async () => {
+    writeConfig({ ...config, baseUrl: sink.origin });
+    const { runner } = newRunner(uniqueSpecId("system-from-payload"));
+    await runner.load();
+    await runTracedTurn(runner, {
+      payload: {
+        model: "stub-model",
+        messages: [
+          { role: "system", content: "always answer in one paragraph" },
+          { role: "user", content: "summarise the readme" },
+        ],
+      },
+    });
+    await runner.dispose();
+
+    const input = traceExports()
+      .flatMap(exportedInputs)
+      .find((candidate) => candidate.includes('"role":"system"'));
+    expect(input).toBeDefined();
+    expect(input).toContain("always answer in one paragraph");
+    // The prompt the model was answering stays in the same observation.
+    expect(input).toContain("summarise the readme");
+    // System first: the order a chat template would render.
+    expect(input?.indexOf("always answer")).toBeLessThan(input?.indexOf("summarise the readme") ?? -1);
+  });
+
+  it("reads a top-level system parameter, the way Anthropic-style APIs send it", async () => {
+    writeConfig({ ...config, baseUrl: sink.origin });
+    const { runner } = newRunner(uniqueSpecId("system-top-level"));
+    await runner.load();
+    await runTracedTurn(runner, {
+      payload: {
+        model: "stub-model",
+        system: [{ type: "text", text: "be terse and cite files" }],
+        messages: [{ role: "user", content: "summarise the readme" }],
+      },
+    });
+    await runner.dispose();
+
+    const input = traceExports()
+      .flatMap(exportedInputs)
+      .find((candidate) => candidate.includes('"role":"system"'));
+    expect(input).toContain("be terse and cite files");
+  });
+
+  it("falls back to the kernel's live prompt when the request carries none", async () => {
+    writeConfig({ ...config, baseUrl: sink.origin });
+    // A provider payload this build cannot read is exactly when the kernel
+    // prompt is the only remaining source.
+    const { runner } = newRunner(uniqueSpecId("system-from-context"), {
+      systemPrompt: "rules rendered by the host",
+    });
+    await runner.load();
+    await runTracedTurn(runner, {
+      payload: { model: "stub-model", messages: [{ role: "user", content: "summarise the readme" }] },
+    });
+    await runner.dispose();
+
+    const input = traceExports()
+      .flatMap(exportedInputs)
+      .find((candidate) => candidate.includes('"role":"system"'));
+    expect(input).toContain("rules rendered by the host");
+  });
+
+  it("records the budget metadata next to the input", async () => {
+    // The budget itself is an import-time constant, so the file that proves it
+    // truncates a system prompt is `langfuse-settings-layers.test.ts`; here the
+    // point is that the metadata rides along with the message at all.
+    writeConfig({ ...config, baseUrl: sink.origin });
+    const system = "rules that must reach the trace";
+    const { runner } = newRunner(uniqueSpecId("system-meta"));
+    await runner.load();
+    await runTracedTurn(runner, {
+      payload: {
+        model: "stub-model",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: "summarise the readme" },
+        ],
+      },
+    });
+    await runner.dispose();
+
+    const [request] = traceExports();
+    // Metadata is flattened into one attribute per key by the Langfuse SDK.
+    const meta = attributeValues(request, "metadata.system_prompt_meta").join("\n");
+    expect(meta).toContain('"truncated":false');
+    expect(meta).toContain(`"orig_len":${system.length}`);
+  });
+
+  it("adds no system message when nothing carries one", async () => {
+    writeConfig({ ...config, baseUrl: sink.origin });
+    const { runner } = newRunner(uniqueSpecId("system-absent"));
+    await runner.load();
+    await runTracedTurn(runner, {
+      payload: { model: "stub-model", messages: [{ role: "user", content: "summarise the readme" }] },
+    });
+    await runner.dispose();
+
+    const inputs = traceExports().flatMap(exportedInputs);
+    expect(inputs.some((candidate) => candidate.includes('"role":"system"'))).toBe(false);
+    expect(inputs.some((candidate) => candidate.includes("summarise the readme"))).toBe(true);
+  });
+});
 });

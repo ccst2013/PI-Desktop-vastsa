@@ -190,7 +190,7 @@ same protection at the cost of one assertion.
 - `examples/plugins/pi-langfuse/src/config-bridge.js` — the contributed entry:
   apply the settings, then evaluate upstream
 - `scripts/bundle-langfuse-extension.mjs` — bundles the bridge plus the pinned
-  unmodified upstream; `--check` reproduces it
+  upstream and its one patch (ADR 0340); `--check` reproduces it
 - `packages/agent-runtime/src/extensions/langfuse-extension.test.ts` — sheet
   values reach the export; a reload picks up a changed file
 - `packages/agent-runtime/src/extensions/langfuse-settings-layers.test.ts` — the

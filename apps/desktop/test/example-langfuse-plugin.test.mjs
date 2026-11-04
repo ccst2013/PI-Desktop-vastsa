@@ -127,10 +127,43 @@ test("the artifact banner names both parts and the pinned upstream version", () 
     banner.includes(`@langfuse/pi-observability-plugin@${pinned}`),
     "the artifact banner must name the pinned version",
   );
-  // Part 2 is the published package, untouched; part 1 is this repository's
-  // own bridge, so a reader of the artifact can tell the two apart.
+  // Part 2 is the published package plus exactly one documented patch. The
+  // decision record and the patch script are named in the banner so a second
+  // patch cannot slip into the artifact unnoticed.
   assert.match(banner, /config-bridge\.js/);
-  assert.match(banner, /unmodified/);
+  assert.match(banner, /ADR 0340/);
+  assert.match(banner, /langfuse-extension-patch\.mjs/);
+});
+
+test("the artifact carries the documented system-prompt patch", () => {
+  // A stale artifact keeps exporting generations that cannot say what the model
+  // was told. `check:langfuse-extension` only runs where the pinned package is
+  // installed, so the committed bytes are asserted here as well.
+  const artifact = read("agent/langfuse.mjs");
+  assert.match(artifact, /function captureSystemPrompt\(/);
+  assert.match(artifact, /const systemCapture = captureSystemPrompt\(/);
+  assert.match(artifact, /role: "system", content: kept/);
+});
+
+test("the patch module applies to the pinned source and refuses anything else", async () => {
+  const patch = await import(
+    pathToFileURL(resolve(repoRoot, "scripts/langfuse-extension-patch.mjs")).href
+  );
+  // An upstream bump that reshapes this code has to fail the bundle, not ship a
+  // trace without a system prompt.
+  assert.throws(() => patch.applyLangfuseSourcePatch("// some other file"), /matched 0 times/);
+
+  const source = resolve(
+    repoRoot,
+    "node_modules/@langfuse/pi-observability-plugin/src/index.ts",
+  );
+  if (!existsSync(source)) return; // devDependencies are not installed here
+  const patched = patch.applyLangfuseSourcePatch(readFileSync(source, "utf8"));
+  assert.match(patched, /systemPrompt\?: string;/);
+  assert.match(patched, /const systemCapture = captureSystemPrompt\(_event, ctx, state\.systemPrompt\);/);
+  assert.match(patched, /\.\.\.\(systemCapture \? \{ system_prompt_meta: systemCapture\.meta \} : \{\}\),/);
+  // Applying it to its own output must fail loudly instead of duplicating it.
+  assert.throws(() => patch.applyLangfuseSourcePatch(patched), /matched 0 times/);
 });
 
 test("the artifact imports nothing the sidecar cannot supply", () => {

@@ -1,6 +1,6 @@
 # ADR 0334: Langfuse tracing ships as an opt-in example plugin
 
-- Status: Accepted
+- Status: Accepted (decision 4 amended by [ADR 0340](0340-langfuse-captures-the-system-prompt.md))
 - Date: 2026-10-22
 - Deciders: PI-Desktop maintainers
 - Related: [07-plugins/16-trusted-extensions](../spec/07-plugins/16-trusted-extensions.md) ·
@@ -89,7 +89,10 @@ and `loadConfig()` calls it unconditionally — so the extension could not load.
    line. None of the three applies here: there is no account, no host-owned
    session title, and a status line is useful feedback for a capability the
    user deliberately turned on. Traces keep upstream's `Pi Turn` name. The
-   artifact banner records that it was built from published bytes.
+   artifact banner records that it was built from published bytes. *(Amended by
+   [ADR 0340](0340-langfuse-captures-the-system-prompt.md): the artifact now
+   carries exactly one anchored patch, which records the system prompt. The
+   fork's three additions are still out.)*
 
 5. **The loader shim exports `getAgentDir`** — `PI_CODING_AGENT_DIR`, else
    `~/.pi/agent`, matching pi. This is an additive export on the compatibility

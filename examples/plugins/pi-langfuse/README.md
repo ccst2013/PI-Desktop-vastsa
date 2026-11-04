@@ -8,9 +8,8 @@ keys it registers no hooks and exports nothing. It is disabled by default and
 is not bundled into PI-Desktop — a stock install carries no tracing code.
 
 - Upstream: [`@langfuse/pi-observability-plugin`](https://github.com/langfuse/pi-observability-plugin) (MIT), pinned in the root `package.json`
-- Upstream: [`@langfuse/pi-observability-plugin`](https://github.com/langfuse/pi-observability-plugin) (MIT), pinned in the root `package.json`
-- `agent/langfuse.mjs` is a generated, committed bundle of that package plus this plugin's own settings bridge (`src/config-bridge.js`), which installs your saved settings as the environment upstream reads
-- Decision records: `docs/adr/0334-langfuse-ships-as-an-opt-in-example-plugin.md` (why it is opt-in) and `docs/adr/0335-langfuse-settings-editable-in-the-plugin-sheet.md` (the settings sheet)
+- `agent/langfuse.mjs` is a generated, committed bundle of that package plus this plugin's own settings bridge (`src/config-bridge.js`), which installs your saved settings as the environment upstream reads. It carries **one** documented local patch: each LLM Call input starts with the system prompt the request carried (ADR 0340)
+- Decision records: `docs/adr/0334-langfuse-ships-as-an-opt-in-example-plugin.md` (why it is opt-in), `docs/adr/0335-langfuse-settings-editable-in-the-plugin-sheet.md` (the settings sheet), and `docs/adr/0340-langfuse-captures-the-system-prompt.md` (the patch)
 
 ## What it sends, and where
 
@@ -26,6 +25,7 @@ Exported fields:
 
 | Data | Notes |
 | --- | --- |
+| System prompt | The text the provider request carried, or the kernel's live prompt if the payload has none. Truncated like a prompt, with `system_prompt_meta` recording `truncated`, `orig_len`, and a sha256 of the full text |
 | Prompt and assistant text | Truncated at `PI_LANGFUSE_MAX_CHARS` (default 20000); the trace records `truncated`, `orig_len`, and a sha256 of the full text |
 | Tool arguments and results | Same truncation |
 | Images in the conversation | **Uploaded by default** — see the switch below |

@@ -3,8 +3,9 @@
 // Part 1: examples/plugins/pi-langfuse/src/config-bridge.js - the plugin's
 // own settings bridge, which installs the user's panel settings as
 // environment variables before importing part 2.
-// Part 2: @langfuse/pi-observability-plugin@0.1.2, built from the unmodified
-// published package; no local patch is applied to it.
+// Part 2: @langfuse/pi-observability-plugin@0.1.2, upstream's published source
+// plus one documented local patch - system-prompt capture (ADR 0340).
+// Patch: scripts/langfuse-extension-patch.mjs
 // Upstream: git+https://github.com/langfuse/pi-observability-plugin.git (MIT)
 // Regenerate with: node scripts/bundle-langfuse-extension.mjs
 import { createRequire as __piCreateRequire } from "node:module";
@@ -41672,6 +41673,64 @@ function createSecretRedactor(...extraSecrets) {
   };
   return (value) => walk(value, []);
 }
+function systemTextOf(value) {
+  if (typeof value === "string") return value.trim() ? value : void 0;
+  if (Array.isArray(value)) {
+    const parts = value.map((part) => {
+      if (typeof part === "string") return part.trim() ? part : void 0;
+      if (part && typeof part === "object") {
+        const block = part;
+        return systemTextOf(block.text) ?? systemTextOf(block.content);
+      }
+      return void 0;
+    });
+    const joined = parts.filter((part) => !!part).join("\n\n");
+    return joined.trim() ? joined : void 0;
+  }
+  return void 0;
+}
+function systemTextFromPayload(payload) {
+  if (!payload || typeof payload !== "object") return void 0;
+  const request = payload;
+  const declared = systemTextOf(request.system) ?? systemTextOf(request.instructions);
+  if (declared) return declared;
+  if (!Array.isArray(request.messages)) return void 0;
+  const collected = [];
+  for (const message of request.messages) {
+    if (!message || typeof message !== "object") continue;
+    const entry = message;
+    if (entry.role !== "system" && entry.role !== "developer") continue;
+    const text = systemTextOf(entry.content);
+    if (text) collected.push(text);
+  }
+  return collected.length ? collected.join("\n\n") : void 0;
+}
+function captureSystemPrompt(event, ctx, fallback) {
+  let text;
+  try {
+    text = systemTextFromPayload(event?.payload);
+  } catch {
+    text = void 0;
+  }
+  if (!text) {
+    try {
+      const live = ctx.getSystemPrompt?.();
+      text = typeof live === "string" && live.trim() ? live : void 0;
+    } catch {
+      text = void 0;
+    }
+  }
+  if (!text) text = fallback;
+  if (typeof text !== "string" || !text.trim()) return void 0;
+  const redacted = redactLangfuseKeys(text);
+  if (typeof redacted !== "string" || !redacted.trim()) return void 0;
+  const { text: kept, meta } = truncateText(redacted);
+  return { message: { role: "system", content: kept }, meta };
+}
+function withSystemPrompt(capture, base) {
+  if (!capture) return base;
+  return base === void 0 ? [capture.message] : [capture.message, base];
+}
 function extractText(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -41954,7 +42013,8 @@ function src_default(pi) {
       pendingToolResults: [],
       sawError: false,
       userText,
-      turnImages: [...promptImages]
+      turnImages: [...promptImages],
+      systemPrompt: typeof event.systemPrompt === "string" ? event.systemPrompt : void 0
     };
     publishParentContext(root, sessionId);
     debug("root created, turn", turnNumber);
@@ -41967,7 +42027,11 @@ function src_default(pi) {
       gen.obs.end();
     }
     const index = ++state.generationCount;
-    const generationInput = index === 1 ? { role: "user", content: lastPromptText } : state.pendingToolResults.length ? { role: "tool", tool_results: state.pendingToolResults } : void 0;
+    const systemCapture = captureSystemPrompt(_event, ctx, state.systemPrompt);
+    const generationInput = withSystemPrompt(
+      systemCapture,
+      index === 1 ? { role: "user", content: lastPromptText } : state.pendingToolResults.length ? { role: "tool", tool_results: state.pendingToolResults } : void 0
+    );
     const obs = state.root.startObservation(
       GENERATION_PREFIX,
       {
@@ -41975,7 +42039,8 @@ function src_default(pi) {
         model: ctx.model?.id,
         metadata: {
           assistant_index: index - 1,
-          ...ctx.model ? { provider: ctx.model.provider } : {}
+          ...ctx.model ? { provider: ctx.model.provider } : {},
+          ...systemCapture ? { system_prompt_meta: systemCapture.meta } : {}
         }
       },
       { asType: "generation" }
