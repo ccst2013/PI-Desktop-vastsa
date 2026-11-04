@@ -168,6 +168,16 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
     created, so the row shows a restart hint while the stored value differs from
     the surface this process launched with instead of pretending to change the
     live window. Other platforms do not render the row.
+  - **Startup animation** (D679 / ADR 0338): one switch, plus an **End early
+    when ready** sub-switch gated by it. The animation itself is a file, not a
+    value, so the row's other job is making the folder findable: its detail line
+    names the video the next launch would play — or says none was found — and
+    carries the action that opens `<dataDir>/startup/`, creating it on the way.
+    Both preferences persist under `AppSettings.startupAnimation` (`enabled`
+    absent means on, so dropping a file in is sufficient; `skipWhenReady` absent
+    plays the video out) and are read before the main window is created, so like
+    the row above they apply on the next launch. The status is re-scanned per
+    open, because a user who just dropped a file in has not restarted yet.
   - **Auto language detection** resolves the OS locale through the main process
     (`app.getLocale()`) rather than the renderer's `navigator.language`, and the
     Auto option shows the detected language inline (e.g. "Currently 简体中文")
@@ -192,6 +202,13 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   the previous choice instead of resetting it. The affordances themselves are
   described in
   [01-ui-ia.md §3.2](01-ui-ia.md#32-sidebar-project-groups).
+- **Scheduled tasks** card: an app-wide switch persisting as optional
+  `AppSettings.scheduledTasksEnabled`, on when absent or true. Off hides the
+  footer clock and global-search page entry, leaves the route if already open,
+  withholds scheduled Agent tools, and blocks new manual/automatic runs and task
+  edits at the Host. Existing task enable states, schedules, and history remain
+  unchanged; active runs can finish. Re-enabling restores access and resumes
+  normal due-time admission without replaying missed occurrences.
 - **Network** card:
   - **Proxy**: a segmented control — System, Direct, Custom. System is the
     default and lets Chromium follow the OS proxy; Direct disables the proxy;
@@ -339,6 +356,18 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   standard 240px field-column cap. Labels stay on one line; when space is
   insufficient, the control moves below the title and whole options wrap
   within the available pane width without horizontal overflow.
+- **Radial context menu** is a card in General after Sidebar with one switch
+  (**Enable on the transcript background**) and four direction pickers
+  (**Up**, **Right**, **Down**, **Left**). The switch is off when
+  `AppSettings.radialMenu.enabled` is absent or false, which keeps the vertical
+  background menu. Each picker stores one `RadialMenuAction`: copy conversation,
+  select conversation text, copy the last answer, scroll to top, jump to
+  latest, open the built-in browser, toggle the work panel, open the project
+  folder, or **Leave empty**. The work panel direction follows the panel's
+  state: it reads **Open work panel** while collapsed and **Close work panel**
+  while open. Pickers are disabled while the switch is off and
+  keep their stored directions for when it is turned back on. Settings search
+  indexes the card and its rows.
 - The **Command shell** row in Defaults uses the host-discovered catalog of native
   PowerShell 5.1, PowerShell 7, cmd, Git Bash, and Bash with IDs
   `windows-powershell`, `windows-pwsh`, `cmd`, `git-bash`, and
@@ -746,7 +775,12 @@ system while preserving their different data ownership:
   opens inline on the MCP page. Imported servers follow the current Global /
   Project filter and selected project; secrets and header values are never
   shown in candidate rows.
-- MCP Market offers Retry after a failed query or partial source failure. It
+- MCP Market installs into the same destination as Add: Global under All or
+  Global, and the selected project under Project. Its installed badges reflect
+  only that destination, so an entry in another level can still be installed
+  here. Project installation requires a selected project and never falls back
+  to Global.
+  MCP Market offers Retry after a failed query or partial source failure. It
   repeats the current search through the existing market request path and
   announces loading while the request runs. After a successful load, a later
   failure keeps that list on screen with the time it was taken and still

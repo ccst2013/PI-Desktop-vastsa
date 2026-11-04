@@ -335,6 +335,11 @@ Gold source: local Codex electron captures; latest row wins where rows conflict.
 | D668 | One process disclosure per turn, with three transcript display modes | **Amend D661 / the `turn-process-and-thinking-display` ADR. A turn renders exactly one top-level process disclosure holding every pre-answer row; the answer stays outside it. `AppSettings.transcriptDisplayMode` selects the layout: `flat` renders no nested activity groups, `command-first` renders `Bash`/run rows as standalone rows beside activity groups, and `fully-folded` (the default for absent or invalid values) keeps commands inside their groups and lets only ordinary assistant progress text split them. The mode is read while rendering, so switching repaints immediately - the projection cache is keyed by messages and compactions only. The disclosure header reports failed / stopped / running / finished with precedence in that order and never echoes the current item, and the disclosure shares one left edge with the levels it reveals. `transcriptDisplayMode` joins the portable application fields; `keepCommandsExpanded` is deprecated, retained only for persisted-settings compatibility, and no longer exposed or read for rendering. No host protocol, persistence schema, permission, or plugin contract change. See the amended ADR, `04-ux/06-settings-ia.md`, `04-ux/08-component-spec.md`, `04-ux/09-interaction-patterns.md`, and E2E-CHAT-turn-process-and-thinking-display.** | Chronological segmentation split one turn into several sibling disclosures above the answer, and the boolean command-folding preference could only express two layouts; a three-mode setting covers flat, command-first, and the released grouped view without changing what a tool received or stored. |
 | D669 | `@` queries search past a truncated file index | **Amend D124: while the 8000-entry `fs/index` snapshot is truncated, a non-empty `@` query is also searched over the root's full listing through the read-only Electron channel `pi-desktop/fs/search` once typing pauses, and its best 50 rows merge with the local matches. A complete index never searches. Remote sessions keep their snapshot. No host RPC, storage, or schema change.** | The shallowest-8000-entry index left a script several folders down matching no query at all, even though the truncation note invited the reader to refine it (issue #1781). |
 | D671 | Inline generative UI visualizations | **Amend D114: local sessions get a second host-owned contained root `<data_dir>/visualizations/<sessionId>/` for `.html` fragments only (Read/Write/Edit, auto-allowed like scratch, never in remote or contract sessions). A standalone `::visualize{"path","title"}` reply line renders the fragment inline through a sandboxed `pi-genui://session/<sid>/<file>` iframe (`sandbox="allow-scripts"`, strict CSP, no network). Builtin skill `pi-desktop/visualize`. No schema change.** | Interactive explanations need an embedded page; ADR gen-ui-inline-visualization. |
+| D674 | Per-turn changed-files summary under a finished reply | **A completed reply whose turn recorded workspace review changes renders one read-only `TurnChangesCard` below its answer and above `entryExtra`, built only from that turn's message-owned `details.review` records (no new capture, IPC, or persistence). The card starts collapsed, keeping its counts visible in a full-width disclosure button; click or Enter/Space reveals or hides its file list and Review link. Choices remain turn-scoped in the existing transcript disclosure state. Rows merge edits per path (`D` if the turn ends by deleting, else `A` if any edit created the file, else `M`; counts summed; rolled-back files stay listed and struck through). When expanded, up to four files use relaxed rows, more use dense rows, and rows past 12 fold into `+N more`. Clicking a row opens Review on that file's recorded changes; the per-call review rows and the Review tab are unchanged.** | Issue #1891, design 10 (adaptive density): the per-call review rows answer "what did this call change", and Review answers it for the whole session, but nothing answered "what did this turn change" without counting rows. |
+| D675 | Inline images are admitted by pixel size as well as bytes | **Amend D361: an image whose PNG/JPEG/GIF/WebP header reports a longest edge above `MAX_INLINE_IMAGE_EDGE_PX` (8000) is never inlined. Host Read refuses it with `TOOL_FAILED`; prompt attachments and restored history take the existing `@path` fallback; and the runtime's last provider view replaces any such image block (user or tool result) with a text notice naming its size. The probe reads headers only (no decoder); unknown dimensions keep the byte-only rule. No protocol, schema, or persisted-format change.** | Issue #1913: a 1.89 MB, 780 x 14182 full-page screenshot passed every byte check, the provider rejected it with a non-retriable 400, and replay made every later request in that session fail. Dropping is deterministic for the same bytes, so the request prefix and prompt caching stay stable; resampling would need an image decoder and is deferred. |
+| D676 | A completed turn the reader followed ends at its prompt | **Amend the stream-completion rule: when a turn completes while the transcript is visible and still following the stream, the renderer scrolls that turn's newest user message to 16px below the titlebar band the transcript reserves at its top (smooth unless reduced motion), releases follow mode, and shows jump-to-latest. Nothing moves when the prompt is already in view, the reply failed or was aborted, the pane is hidden or in a reading window, a disclosure position is held, or a new run starts before the move. Renderer only; no setting, IPC, or persistence change.** | Issue #1889: after a long reply the reader sat at its last line and had to scroll back up to find where it began. |
+| D677 | DeepSeek reasoning replay uses one field per row and never covers real reasoning | **Amend ADR 0256 decision 3: the pi-ai fill pass takes the reasoning field from the newest assistant row that has real reasoning, normalizes every assistant row to that single field (moving real reasoning from another field name, deleting the others), and fills the placeholder only on rows with no reasoning. History rebuild and the thinking panel drop a leading echo of the placeholder (`withoutReasoningReplayPlaceholder`); stored text is not rewritten. No schema, IPC, or setting change.** | Issue #1945: rebuilt rows are stamped `reasoning_content` while a relay streams `reasoning_text`; the fill pass picked `reasoning_content` and wrote the placeholder over the live row's real reasoning, the model echoed it as its own thinking (13.6% of assistant rows in affected sessions), and the echo was persisted and replayed. |
+| D678 | Radial context menu rebuilt and moved to General | **The opt-in transcript radial menu gets at-rest icon-and-label sectors (the hover-only hub label is gone), one filled highlight for the active sector with no focus rectangle, a recessed hub carrying the click-point dot, a 248 px disc with hairline separators and the composer shadow, and shared motion tokens for hover and reveal. A right-press started while the ring is open runs the sector it is released on; releasing in the hub dismisses without running; the release trailing the opening right-click is inert. The settings card moves from the AI tab to General after Sidebar and the settings-search index follows. Action vocabulary, per-direction defaults, `AppSettings.radialMenu`, persistence, and IPC are unchanged.** | The icon-only ring could not be read without hovering every sector, the sector fill and button background painted two highlights over one target, and the ring's switch sat in the AI tab although the surface is a transcript-interaction preference. |
 
 
 ## M0. Model catalog decisions
@@ -423,6 +428,7 @@ Gold source: local Codex electron captures; latest row wins where rows conflict.
 | D236 | One desktop instance per data directory | **Electron main takes `app.requestSingleInstanceLock()` during module evaluation — after `app.setName`, because the lock lives under the name-derived `userData` path, and before the logger, the persistence outbox, or any other data-directory access. A launch that does not take the lock calls `app.quit()` and boots nothing: the readiness and `before-quit` handlers both return early, so it creates no window, tray, child process, or log line inside the running instance's data directory. The lock holder answers `second-instance` by restoring and focusing its main window through the same path as the tray's Show action, which recreates a window that was closed or hidden into the tray. The lock is requested only when `PI_DESKTOP_DATA_DIR` is unset, so E2E harnesses, the capture rig, and deliberate side-by-side profiles keep the current start-anytime behavior. No IPC channel, host protocol, or storage schema changes.** | A second launch booted a complete second app: another host-core over the single-writer `pi.sqlite` (D002), another outbox and log tree in the same directory, another tray, launcher-chord registration, and updater, leaving two shells divergent over one database. Relaunching the app is a request to see the one already running, and scoping the lock to the installation keeps isolated-data-directory runs launchable (ADR 0094). |
 | D367 | Host-owned plugin session import and ownership API | **`pi.session` gains `import`, `importBatch`, `list`, `get`, `listMessages`, `rename`, and `delete`; `contributes.sessionSources` is required for every source; host-core generates ids and scopes every operation to `(pluginId, source, externalId)` ownership; imports never activate project/provider/model bindings. Schema v14 adds `session_import_origins` and `sessions.deleted_at`; protocol v11 is unchanged. Trash keeps the transcript for owner-only purge.** | External-history plugins need durable import/read/update/delete, and the in-flight `session.getLlmContext` and core `session.import` boundaries are not safe plugin ownership boundaries (ADR 0200, E2E-214 / E2E-215) |
 | D368 | Explicit plugin project ids and host-owned session refresh | **Permission-gated `pi.project.create({ path })` creates or reuses a project and returns its host-generated id without activating the workspace; import items may bind an existing `projectId`, omitted ids stay unbound, and historical origin paths never become tool roots. Electron main emits `pi-desktop/session/event/changed` after successful plugin imports, renames, and deletes; the renderer reuses `refreshSessions()`, skipped imports emit nothing, and closed project tabs are not reopened.** | Exposing `workspace.set` to plugins would change the user's active workspace, and plugin writes need a host-owned renderer refresh path (ADR 0201, E2E-216) |
+| D680 | Plugin session scope: `.all` grants and message-level writes | **`pi.session` gains `session.read.all`, `session.update.all`, and `session.delete.all`, which carry `list`/`get`/`listMessages`, `rename`, and `delete` over every live session instead of only the calling plugin's imports. `.all` is a separate grant, never a widening of `.own`, and it wins when a manifest declares both. Electron main resolves the scope from the grants and sends `scope` to host-core, which enforces exactly that and treats an absent value as `own`; `list` becomes a `LEFT JOIN` on the origin sidecar, `get`/messages report the real `originKind`, `source`, `externalId`, model binding, and `origin` instead of the import projection, and the `trash`/`purge` statements follow the scope instead of an embedded `EXISTS`. Message-level writes arrive as `appendMessage`/`replaceMessages` (`session.update.all`) and `deleteMessage`/`truncateFrom` (`session.delete.all`), delegating to the existing host-core transcript operations, refusing a rewrite with `TURN_RUNNING` while a turn owns the session, and sharing a 60/min budget. `rename` now claims the manual title source. Every session call audits the authorising scope; `sessionsChanged` names the changed session.** | The ADR 0200 ownership filter made a legitimate "read the user's own conversation" capability inexpressible, so ADR 0323 had to invent a narrower title permission and ADR 0333's shipped suggestion flow cannot read the session it runs on; widening `.own` instead would silently expand grants users reviewed as "only the sessions this plugin imported" (ADR 0339) |
 | D370 | Local MCP control plane for desktop operations | *(amended by D372)* **An opt-in Streamable HTTP MCP server inside Electron Main binds to `127.0.0.1`, authenticates with a persistent random bearer token, validates supplied Origins against loopback hostnames, writes a mode-restricted connection manifest, and delegates to the same registered IPC handlers the renderer uses. Named tools cover the project/session/Agent flow; `pi_desktop_invoke` reaches a risk-tagged operation catalog; dangerous operations require `confirm: true`; successful external mutations reuse the renderer session-change event. Local-only and fail-soft at startup.** | An external Agent needs to drive the running desktop without a second permission or persistence implementation and without touching the deferred remote Gateway / WebUI boundary (ADR 0203, E2E-220) |
 | D372 | Tightened local MCP control-plane boundary | **Amend D370 / ADR 0203: the first-version catalog is the project/session/Agent/workspace flow plus reviewed reads; secret-shaped arguments are stripped; `session/configure` is dangerous; listen addresses are asserted loopback; protocol versions are negotiated rather than echoed; results including `structuredContent` are bounded; renderer session refresh is mutation-only.** | The first catalog still exposed native pickers, secret-write provider/OAuth/MCP paths, and unconfirmed `session/configure`, and treated session reads as renderer mutations (E2E-220) |
 | D377 | Plugin desktop control requires native user consent | **A `dangerous` desktop operation invoked through `pi.desktop.invoke` needs the plugin's `confirm: true` and then the user's answer to a host-owned native dialog that shows only the catalog operation id, description, and a bounded argument preview; dismissal, Deny, and a host without a dialog service fail with `PERMISSION_DENIED`. `read`/`write` operations and the MCP contract (D372) are unchanged.** | The controller's `confirm` flag is set by the caller, so a plugin (or a model behind it) could delete sessions or switch a session to `auto` with no human in the loop, and any plugin-drawn confirmation card can be relabeled by a prompt-injected transcript (ADR 0208, E2E-236) |
@@ -7994,3 +8000,192 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   `turn-process-and-thinking-display`, `04-ux/08-component-spec.md` §9,
   `04-ux/09-interaction-patterns.md` §4.2, and
   E2E-CHAT-turn-process-and-thinking-display.
+
+## 2026-10-28 — Per-turn changed-files summary (D674)
+
+- D674 adds a read-only `TurnChangesCard` under every completed reply whose
+  turn recorded at least one workspace review change (issue #1891, design 10).
+  It mounts with the reply plugin slots, so it never appears while streaming or
+  after a failed turn, and `entryExtra` blocks stay beneath it.
+- The card reads only the turn's message-owned `details.review` records through
+  `reviewChangeFromMessage`; no capture, IPC, persistence, or host-core change.
+  Rows merge edits per path: `D` when the turn ends by deleting the file, else
+  `A` when any edit created it, else `M`; counts add up; a file whose every edit
+  was rolled back stays listed and struck through.
+- Adaptive density: up to four files use relaxed 25px rows; more switch to dense
+  21px rows with a directory count; rows past 12 fold into `+N more` with a link
+  to Review. The card is one `--ds-tile` surface with no border (D297).
+- Clicking a row opens the originating session's Review tab, scrolls to that
+  file's first recorded change, and expands it, through a transient renderer
+  focus request (`lib/review-focus-request.ts`) rather than app-store state.
+  The per-call review rows and the Review tab otherwise keep their behavior.
+- Covered by `apps/desktop/test/turn-changes-card.test.mjs`. See
+  `04-ux/08-component-spec.md` §4.4 and E2E-CHAT-turn-changed-files-summary.
+
+## 2026-10-28 — Pixel-size image admission (D675)
+
+- D675 adds a header-only pixel-size probe (`packages/shared/src/image-dimensions.ts`,
+  mirrored in `crates/host-core/src/tools/image_dimensions.rs`) for PNG, JPEG,
+  GIF, and WebP. An image whose longest edge exceeds 8000 px is not inlined
+  (issue #1913).
+- Host Read refuses such a file with `TOOL_FAILED` and a message naming its
+  size, so it never enters history. Prompt attachments and restored history
+  keep the image ref and send the existing `@path` fallback instead of bytes.
+- `convertToLlm` replaces any remaining oversized image block (older sessions,
+  plugin or MCP results) with `[Image omitted: WxH px exceeds the 8000 px
+  longest-edge limit for model input.]`, which recovers a session that already
+  fails every request. The same bytes always produce the same notice, so
+  prompt caching is unaffected.
+- Images whose dimensions cannot be read keep the previous byte-only rule.
+  Resampling an oversized image instead of dropping it needs a decoder and is
+  not part of this change.
+- Covered by `packages/shared/src/image-dimensions.test.ts`,
+  `packages/agent-runtime/src/image-admission.test.ts`,
+  `packages/agent-runtime/src/attachment-history.test.ts`,
+  `apps/desktop/test/prompt-inline-attachments.test.mjs`, and host-core
+  `tools::image_dimensions` / `read_refuses_images_past_the_pixel_limit` tests.
+
+## 2026-10-28 — Completed turns end at their prompt (D676)
+
+- D676 replaces "stream completion keeps a following reader at the bottom":
+  when a followed turn completes, its prompt scrolls to the top of the
+  viewport and jump-to-latest appears (issue #1889). A reader who scrolled
+  away keeps their position.
+- The move waits for the reply's final status, runs one frame after the
+  settled reply lays out, and is skipped for failed or aborted turns, a prompt
+  already in view, a hidden pane or reading window, a held disclosure
+  position, and a queued follow-up that starts first.
+- Logic lives in `apps/desktop/src/lib/turn-completion-scroll.ts` and the
+  `useTurnCompletionScroll` hook beside `useTranscriptScroll`. Covered by
+  `apps/desktop/test/turn-completion-scroll.test.mjs` and
+  `pnpm test:e2e:transcript-turn-completion`
+  (E2E-CHAT-completed-turn-scrolls-to-prompt).
+
+## 2026-10-28 — One DeepSeek reasoning field per replayed row (D677)
+
+- D677 amends ADR 0256 decision 3 (issue #1945). The pi-ai fill pass in
+  `patches/@earendil-works__pi-ai@1.3.0.patch` picks the reasoning field of the
+  newest assistant row with real reasoning instead of the first field in a
+  fixed list, and normalizes every assistant row to it. Real reasoning stored
+  under another field name moves there; the other fields are removed, so a
+  row never carries two (relays reject duplicate reasoning fields).
+- The placeholder now fills only rows with no reasoning at all, so a live row
+  with real reasoning is never sent the placeholder in the field the model
+  reads.
+- `withoutReasoningReplayPlaceholder` (shared) drops a leading echo of the
+  placeholder, and its observed `[reasoning retained for this turn]` rewrite,
+  from stored thinking in session and delegate history rebuild and in
+  `messageThinking`, which feeds the thinking panel. Existing transcripts are
+  not rewritten; the echo simply stops being shown or replayed.
+- Not changed: strict relays still receive the non-empty placeholder for rows
+  with no reasoning (#296), and official DeepSeek keeps `""`.
+- Covered by `reasoning-content-backfill.test.ts`, `runtime.test.ts`,
+  `provider-presets.test.ts`, and `apps/desktop/test/assistant-turns.test.mjs`.
+  See E2E-005E.
+
+## 2026-10-29 — Radial context menu rebuilt and moved to General (D678)
+
+- D678 reworks the opt-in transcript radial menu. Every sector shows its
+  action's icon and label at rest, so the ring reads without hovering; the
+  active sector fills as a single highlight (no button background, no focus
+  rectangle); the hub is a recessed well with the click-point dot; the disc
+  shrinks from 320 to 248 px with hairline separators and the composer shadow;
+  and hover and reveal motion follow the shared motion tokens.
+- The standard marking gesture joins click and keyboard: a right-press that
+  starts while the ring is open runs the sector it is released on, releasing
+  in the hub dismisses without running, and the release trailing the
+  right-click that opened the ring is inert.
+- The settings card moves from the AI tab to General (after Sidebar) with its
+  settings-search index; the action vocabulary, per-direction defaults,
+  `AppSettings.radialMenu` shape, persistence, and IPC are unchanged.
+- Covered by `apps/desktop/test/radial-menu.test.mjs`, the Chromium component
+  check `pnpm test:e2e:radial-menu`, and capture scenes `pi-radial` /
+  `pi-radial-dark`. See `04-ux/09-interaction-patterns.md` §1.11 and
+  E2E-CHAT-radial-background-menu.
+
+## 2026-11-03 — User-supplied startup animation (D679)
+
+- D679 lets a user own the boot surface. A video in `<dataDir>/startup/`
+  replaces the brand splash for that launch: it plays to its last frame, holds
+  the window under the same opaque black it played on until the shell has its
+  initial state, then fades that black out over 1000ms
+  (`--motion-startup-reveal`, the one duration outside the motion ramp). The
+  mask stops taking input when the fade starts, so the shell and its window
+  controls are operable for the whole second.
+- Discovery is filesystem-only and creates nothing: entries are confined to
+  the directory by realpath, ranked `webm` > `mp4` > `m4v` > `mov` with file
+  name as the tie-break, and dot-prefixed, non-file, empty, or over-64 MB
+  entries drop out. An installation with no such directory is unchanged — same
+  splash, same dwell, same watchdog bounds.
+- The bytes are served over `pi-startup://animation`, a host-owned scheme with
+  one pathless URL (`standard`, `secure`, `stream`, no CORS) reserved in the
+  single `registerSchemesAsPrivileged` call; `media-src pi-startup:` is the only
+  CSP change. No filesystem path reaches the renderer. The descriptor arrives
+  as a window creation argument, like the display locale, so it is readable
+  before the first paint.
+- Three bounds keep the surface recoverable, each below the next: first frame
+  2s, whole animation 15s, and the watchdog's stalled bound 180s. `Escape`
+  skips. Every end — clean, error, timeout, skip — runs the same reveal.
+- Exactly one boot surface is mounted, ranked recovery > animation > brand
+  splash. The animation plays once per launch for the process's first window
+  (a tray or Dock reopen replays nothing; `sessionStorage` blocks a reload
+  replay), is dropped entirely under `prefers-reduced-motion: reduce`, and is
+  skipped under `PI_DESKTOP_CAPTURE=1`.
+- `AppSettings.startupAnimation` holds the two choices discovery cannot make:
+  `enabled` (absent means on) and `skipWhenReady` (absent plays it out). Both
+  are read before the window is created, so a change lands on the next launch.
+  General → Appearance gains the switch, the gated `skipWhenReady` switch, a
+  status line naming the file the next launch would play, and an action that
+  opens and creates the folder.
+- Not changed: the brand splash, its 420ms dwell and 280ms fade, the watchdog
+  bounds and recovery surface, window creation options, and plugin contracts.
+  Plugin-contributed animations are explicitly out of scope — that hands an
+  untrusted source the first paint and needs its own ADR.
+- Covered by `packages/shared/src/startup-animation.test.ts` and
+  `apps/desktop/test/startup-animation.test.mjs`. See ADR 0338,
+  `04-ux/09-interaction-patterns.md` §1.12 and E2E-076.
+- `pnpm test:e2e:startup-animation` boots the real app against a generated
+  VP9 clip and asserts what no source check can: Chromium decodes bytes served
+  over `pi-startup:` under the page CSP, playback advances, the reveal hands
+  over an interactive shell, and an unplayable file yields the shell in about a
+  second rather than holding the window.
+
+## 2026-10-20 — Plugin session scope: `.all` grants and message-level writes (D680)
+
+- D680 / ADR 0339 opens `pi.session` beyond the ADR 0200 import boundary. Three
+  new permissions — `session.read.all`, `session.update.all`,
+  `session.delete.all` — carry the existing verbs over every live session,
+  including the conversations the user created in this app.
+- `.all` is an addition, not a widening. An installed plugin keeps exactly the
+  reach its user reviewed; a manifest may declare both, and `.all` wins.
+- The ownership predicate stops being a second, implicit permission. Electron
+  main resolves the scope from the granted permissions and sends it; host-core
+  enforces exactly that, treats an absent `scope` as `own`, and rejects an
+  unknown value with `INVALID_PARAMS`.
+- The queries that only worked because the boundary was narrow are fixed:
+  `list` left-joins the origin sidecar, `get` and messages report the real
+  `originKind` / `source` / `externalId` / model binding / `origin` instead of
+  the import projection, and the `trash` and `purge` statements follow the
+  scope instead of an embedded `EXISTS`.
+- Message-level writes exist for the first time: `appendMessage` and
+  `replaceMessages` under `session.update.all`, `deleteMessage` and
+  `truncateFrom` under `session.delete.all`. They delegate to the host-core
+  transcript operations, so revision archiving, inflight checkpoints, and the
+  JSONL rewrite path are unchanged.
+- A rewrite is refused with `TURN_RUNNING` while a turn owns the session.
+  `appendMessage` is exempt, because appending is how a turn's own rows land.
+- `rename` claims the manual title source, so an installed `session.autoTitle`
+  plugin cannot replace a title the user's plugin chose.
+- Every session call now audits the scope that authorised it. Before this
+  change `list`/`get`/`listMessages`/`rename`/`delete` emitted no audit entry.
+- `sessionsChanged` carries the changed `sessionId`, and the shell re-reads an
+  open transcript when that id is active and no turn is running.
+- Not changed: `.own` semantics, the import contract and its limits, the
+  `session.autoTitle` boundary, database schema, and persisted formats. The
+  delete rate limit stays at 20/minute; the four message writes share a
+  60/minute budget.
+- Covered by the `plugin_sessions` and `plugin_session` host-core tests,
+  `apps/desktop/test/plugin-session-access.test.mjs`, and
+  `apps/desktop/test/plugin-session-api.test.mjs`. See ADR 0339, ADR 0200's
+  amendment, ADR 0323's corrected alternative, `03-plugin-api.md` §plugin-owned
+  and host-wide sessions, `13-plugin-permissions-matrix.md` §2, and E2E-268.

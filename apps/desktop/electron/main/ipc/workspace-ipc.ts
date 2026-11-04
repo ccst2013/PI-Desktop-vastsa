@@ -36,10 +36,12 @@ import {
   listDir,
   readOpenableFile,
   readOpenableImage,
+  readUserOpenableFile,
   resolveRealOpenablePath,
+  resolveUserOpenablePath,
 } from "@pi-desktop/host-runtime";
 import { openableMp4Path } from "../open-attachment-video";
-import { isChatRefOutsideRoots, resolveChatFileRef } from "../chat-ref-resolve";
+import { isChatRefOutsideRoots, resolveChatFileRef, resolveExternalChatRef } from "../chat-ref-resolve";
 import { rebaseWorktreeRef, type WorktreeRefContext } from "../worktree-ref";
 import { getWorkspaceFileIndex, searchWorkspaceFiles } from "../fs-index";
 import {
@@ -326,11 +328,10 @@ export function registerWorkspaceIpc({
             .map((path) => resolve(path)),
         ),
       ];
-      if (safeFolders.some((path) => !existsSync(path) || !statSync(path).isDirectory())) {
-        throw Object.assign(new Error("project group folders must be directories"), {
-          errorCode: ErrorCodes.INVALID_ARGUMENT,
-        });
-      }
+      // No blanket existence pre-check here: the host validates the submitted
+      // roots (folders new to the group must exist on disk) while roots the
+      // group already owns may have been renamed or unmounted externally and
+      // must stay editable so the group can be healed (#1869).
       // The promoted primary must be one of the folders this call keeps.
       const safePrimary = primary ? resolve(primary) : "";
       if (safePrimary && !safeFolders.includes(safePrimary)) {
@@ -933,7 +934,7 @@ export function registerWorkspaceIpc({
           throw error;
         }
       }
-      return readOpenableFile(
+      return readUserOpenableFile(
         requested,
         workspaceRoot,
         await fsExtraRoots(workspaceRoot),
@@ -974,7 +975,7 @@ export function registerWorkspaceIpc({
         throw error;
       }
     }
-    const target = await resolveRealOpenablePath(
+    const target = await resolveUserOpenablePath(
       requested,
       workspaceRoot,
       await fsExtraRoots(workspaceRoot),
@@ -993,7 +994,7 @@ export function registerWorkspaceIpc({
     if (remote && !(await isLocalStoredFile(String(input.path ?? "")))) throw Object.assign(new Error("remote paths cannot be opened on this computer"), { errorCode: ErrorCodes.INVALID_ARGUMENT });
     const workspaceRoot = await optionalWorkspaceRoot(input.sessionId);
     const requested = String(input.path ?? "").trim();
-    const target = await resolveRealOpenablePath(
+    const target = await resolveUserOpenablePath(
       requested,
       workspaceRoot,
       await fsExtraRoots(workspaceRoot),
@@ -1077,7 +1078,9 @@ export function registerWorkspaceIpc({
         attachments: join(dataDir, "attachments"),
       };
       if (await isChatRefOutsideRoots(ref, roots)) {
-        return { match: null, reason: "outside-allowed-roots" };
+        // An exact absolute path outside the managed roots opens when it names
+        // an existing regular file (ADR 0339).
+        return resolveExternalChatRef(ref);
       }
       return { match: await resolveChatFileRef(ref, roots) };
     },

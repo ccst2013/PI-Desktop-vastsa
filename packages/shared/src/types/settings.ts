@@ -39,6 +39,25 @@ export type CloseBehavior = "ask" | "tray" | "quit";
 
 export type TranscriptDisplayMode = "flat" | "command-first" | "fully-folded";
 
+/**
+ * Preferences for the user-supplied boot animation (D679 / ADR 0338).
+ *
+ * The file itself is never named here — it is discovered in
+ * `<dataDir>/startup/` — so these are only the two choices discovery cannot
+ * make: whether to play what it found, and whether a fast boot may cut the
+ * playback short.
+ */
+export type StartupAnimationSettings = {
+  /** `false` ignores a present file. Absent means play it. */
+  enabled?: boolean;
+  /**
+   * End the animation as soon as the shell has its initial state, instead of
+   * letting the video reach its last frame. Absent and `false` play it out,
+   * which is the shipped behavior.
+   */
+  skipWhenReady?: boolean;
+};
+
 export type AppSettings = {
   imageGeneration?: import("../image-generation.js").ImageGenerationBinding | null;
   /** All models marked for image generation; absent falls back to imageGeneration. */
@@ -63,6 +82,8 @@ export type AppSettings = {
   jevEnabled?: boolean;
   /** Prevent idle system sleep while this desktop app runs; off when absent. */
   keepAwakeWhileRunning?: boolean;
+  /** Enable scheduled task UI, tools and new runs. Absent means enabled. */
+  scheduledTasksEnabled?: boolean;
   /** Configured command shell for the agent Bash protocol tool. */
   defaultCommandShell?: CommandShellId;
   /** @deprecated Retained for one-time migration into pi.prompt-enhancement. */
@@ -87,6 +108,14 @@ export type AppSettings = {
    * launch.
    */
   macosWindowTranslucency?: boolean;
+  /**
+   * User-supplied boot animation played from `<dataDir>/startup/` (D679).
+   *
+   * Absent means the feature is on but dormant: with no file in that directory
+   * the boot surface stays the brand splash, which is why no field here has to
+   * be written for an existing installation to behave as it always did.
+   */
+  startupAnimation?: StartupAnimationSettings;
   /** UI language; `auto` (and absent) follows the OS locale. */
   language?: "auto" | "en" | "zh-CN" | "zh-TW" | "tr" | "de" | "es" | "fr" | "ko" | "pt-BR";
   /**
@@ -226,6 +255,12 @@ export type AppSettings = {
   sidebarSessionTime?: boolean;
   /** Voice input settings (D-voice-runtime). */
   voice?: VoiceInputSettings;
+  /**
+   * Opt-in radial context menu for the empty transcript background. Absent
+   * keeps the vertical menu; see `RadialMenuPreferences` for the direction
+   * defaults.
+   */
+  radialMenu?: RadialMenuPreferences;
   onboardingDismissed: boolean;
 };
 
@@ -246,3 +281,34 @@ export type VoiceInputSettings = {
 export type LinkOpenTarget = "workpanel" | "external";
 
 export type ContextUsageDisplay = "remaining" | "used";
+
+/**
+ * One action the transcript background radial menu can place on a direction.
+ * `none` leaves that direction empty, so a ring can carry fewer than four
+ * actions without inventing a fifth one.
+ */
+export type RadialMenuAction =
+  | "copy-conversation"
+  | "select-conversation"
+  | "copy-last-answer"
+  | "scroll-top"
+  | "scroll-bottom"
+  | "open-browser"
+  | "open-work-panel"
+  | "open-project-folder"
+  | "none";
+
+export type RadialMenuDirection = "up" | "right" | "down" | "left";
+
+/**
+ * Per-direction placement for the transcript background radial menu.
+ * Absent fields fall back to the released defaults; `enabled` is opt-in, so an
+ * absent object keeps the vertical context menu every existing build ships.
+ */
+export type RadialMenuPreferences = {
+  enabled?: boolean;
+  up?: RadialMenuAction;
+  right?: RadialMenuAction;
+  down?: RadialMenuAction;
+  left?: RadialMenuAction;
+};

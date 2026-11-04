@@ -31,6 +31,8 @@ import type {
   PendingInteractiveRequests,
   AgentInstructionFile,
   AppSettings,
+  StartupAnimationDescriptor,
+  StartupAnimationStatus,
   AccountCaptcha,
   AccountSignInInput,
   AccountState,
@@ -116,6 +118,8 @@ import type {
   AppMenuCommand,
   AppNotification,
   NativeMenuAction,
+  WorkPanelTabMenuAction,
+  WorkPanelTabMenuRequest,
   NotificationListResult,
   ReviewRollbackResult,
   PlanProposal,
@@ -166,6 +170,8 @@ import {
   normalizeMode,
   normalizeNetworkProxy,
   normalizeNetworkPolicy,
+  normalizeRadialMenuPreferences,
+  radialMenuWriteError,
   resolveFontScale,
   normalizeChatContentMaxWidth,
   validateNetworkPolicy,
@@ -338,6 +344,11 @@ declare global {
       platform: NodeJS.Platform;
       /** Authoritative OS locale passed from the main process at window creation. */
       locale?: string;
+      /**
+       * Boot animation the main process resolved for this window, or null to
+       * keep the brand splash. Available before the first paint (D679).
+       */
+      startupAnimation?: StartupAnimationDescriptor | null;
       /** Resolve a native dropped File to its source path. */
       getDroppedFilePath?: (file: File) => string | null;
     };
@@ -435,6 +446,7 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
     sidebarRunningBadge: settings.sidebarRunningBadge !== false,
     sidebarRunningRail: settings.sidebarRunningRail === true,
     keepCommandsExpanded: settings.keepCommandsExpanded !== false,
+    scheduledTasksEnabled: settings.scheduledTasksEnabled !== false,
     transcriptDisplayMode: isTranscriptDisplayModeValue(settings.transcriptDisplayMode)
       ? settings.transcriptDisplayMode
       : "fully-folded",
@@ -452,6 +464,7 @@ export function normalizeSettings(settings: AppSettings): AppSettings {
       (settings as { largePasteThreshold?: unknown }).largePasteThreshold,
     ),
     fontScale: resolveFontScale(settings),
+    radialMenu: normalizeRadialMenuPreferences(settings.radialMenu),
     networkProxy: normalizeNetworkProxy(
       (settings as { networkProxy?: unknown }).networkProxy,
     ),
@@ -484,6 +497,12 @@ export function validateSettingsWrite(settings: AppSettings): AppSettings {
     !isTranscriptDisplayModeValue(settings.transcriptDisplayMode)
   ) {
     throw Object.assign(new Error("transcriptDisplayMode is invalid"), {
+      errorCode: "INVALID_PARAMS",
+    });
+  }
+  const radialMenuProblem = radialMenuWriteError(settings.radialMenu);
+  if (radialMenuProblem) {
+    throw Object.assign(new Error(radialMenuProblem), {
       errorCode: "INVALID_PARAMS",
     });
   }
@@ -546,6 +565,14 @@ export function validateSettingsWrite(settings: AppSettings): AppSettings {
     });
   }
   if (
+    Object.prototype.hasOwnProperty.call(settings, "scheduledTasksEnabled") &&
+    typeof settings.scheduledTasksEnabled !== "boolean"
+  ) {
+    throw Object.assign(new Error("scheduledTasksEnabled is invalid"), {
+      errorCode: "INVALID_PARAMS",
+    });
+  }
+  if (
     Object.prototype.hasOwnProperty.call(value, "jevEnabled") &&
     typeof value.jevEnabled !== "boolean"
   ) {
@@ -568,6 +595,23 @@ export function validateSettingsWrite(settings: AppSettings): AppSettings {
     throw Object.assign(new Error("inlineVisualizations is invalid"), {
       errorCode: "INVALID_PARAMS",
     });
+  }
+  if (Object.prototype.hasOwnProperty.call(value, "startupAnimation")) {
+    const startupAnimation = value.startupAnimation;
+    if (
+      !startupAnimation ||
+      typeof startupAnimation !== "object" ||
+      Array.isArray(startupAnimation) ||
+      Object.entries(startupAnimation).some(
+        ([key, field]) =>
+          (key !== "enabled" && key !== "skipWhenReady") ||
+          typeof field !== "boolean",
+      )
+    ) {
+      throw Object.assign(new Error("startupAnimation is invalid"), {
+        errorCode: "INVALID_PARAMS",
+      });
+    }
   }
   for (const key of [
     "sidebarRunningIndicators",
@@ -721,7 +765,7 @@ export const api = {
     bootId?: string;
   }) => invoke<{ ok: boolean }>(IPC.invoke.pluginSessionActive, input),
   listSessions: () =>
-    invoke<{ sessions: SessionSummary[] }>(IPC.invoke.sessionList).then((result) => ({
+    invoke<{ sessions: SessionSummary[]; runningSessionIds?: string[] }>(IPC.invoke.sessionList).then((result) => ({
       ...result,
       sessions: result.sessions.map(normalizeSession),
     })),
@@ -795,7 +839,7 @@ export const api = {
   configureSession: (
     id: string,
     config: Pick<SessionSummary, "mode" | "providerId" | "modelId"> &
-      Partial<Pick<SessionSummary, "thinkingLevel" | "permissionMode">>,
+      Partial<Pick<SessionSummary, "thinkingLevel" | "permissionMode" | "fastMode">>,
   ) =>
     invoke<{ session: SessionSummary }>(
       IPC.invoke.sessionConfigure,
@@ -1126,6 +1170,16 @@ export const api = {
     ),
   replaceSessionMessages: (sessionId: string, messages: UiMessage[]) =>
     invoke(IPC.invoke.sessionReplaceMessages, { sessionId, messages }),
+  deleteSessionMessage: (input: { sessionId: string; messageId: string }) =>
+    invoke<{ ok: true; deleted: boolean; deletedCount: number }>(IPC.invoke.sessionDeleteMessage, input),
+  retractPendingSessionPrompt: (input: {
+    sessionId: string;
+    userMessageId: string;
+    turnId?: string;
+  }) =>
+    invoke<{ ok: true; retracted: boolean; removedCount: number; reason?: string }>(
+      IPC.invoke.sessionRetractPendingPrompt, input,
+    ),
   saveSessionRevision: (input: {
     sessionId: string;
     rootUserId: string;
@@ -1142,7 +1196,8 @@ export const api = {
     sessionId: string;
     rootUserId: string;
     revisionIndex: number;
-    prefix: UiMessage[];
+    prefix?: UiMessage[];
+    requireCanonicalPrefix?: boolean;
   }) =>
     invoke<{ messages: UiMessage[] }>(IPC.invoke.sessionActivateRevision, input),
   steer: (req: AgentSteerRequest) =>
@@ -1594,6 +1649,12 @@ export const api = {
   executeCommand: (commandId: string) =>
     invoke(IPC.invoke.commandPaletteExecute, commandId),
   openLogs: () => invoke(IPC.invoke.logOpenFolder),
+  /** What the next launch would play as its boot animation (D679). */
+  startupAnimationStatus: () =>
+    invoke<StartupAnimationStatus>(IPC.invoke.startupAnimationStatus),
+  /** Reveal the folder a startup animation is dropped into, creating it first. */
+  openStartupAnimationFolder: () =>
+    invoke(IPC.invoke.startupAnimationOpenFolder),
   /**
    * Quit the application. Used by the surfaces that own the window before the
    * shell has data; the main process runs the same ordered shutdown as the Quit
@@ -1732,6 +1793,8 @@ export const api = {
       IPC.invoke.nativeMenuAction,
       { action },
     ),
+  openWorkPanelTabMenu: (request: WorkPanelTabMenuRequest) =>
+    invoke<WorkPanelTabMenuAction | null>(IPC.invoke.workPanelTabMenu, request),
   onWindowMaximized: (listener: (event: { maximized: boolean }) => void) => {
     if (!window.piDesktop?.on) return () => undefined;
     return window.piDesktop.on(IPC.event.windowMaximized, (payload) =>
@@ -2036,6 +2099,11 @@ export const api = {
       pluginId?: string;
       projectPath?: string | null;
       selectSessionId?: string;
+      /**
+       * The one session whose transcript changed. A plugin message write names
+       * it so the shell can repaint an already open transcript (ADR 0339).
+       */
+      sessionId?: string;
     }) => void,
   ) => {
     if (!window.piDesktop?.on) return () => undefined;
@@ -2046,6 +2114,7 @@ export const api = {
           pluginId?: string;
           projectPath?: string | null;
           selectSessionId?: string;
+          sessionId?: string;
         },
       ),
     );

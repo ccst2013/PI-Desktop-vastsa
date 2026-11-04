@@ -105,13 +105,18 @@ export type RefreshSessionsOptions = {
   revealImportedProjects?: boolean;
 };
 
-/** Toolbar selections retained on the unpersisted new-task draft. */
+/**
+ * Toolbar selections retained on the unpersisted new-task draft. An absent
+ * field keeps the default the new session would otherwise start with.
+ */
 export type DraftSessionConfiguration = {
-  mode: Mode;
-  thinkingLevel: SessionThinkingLevel;
+  mode?: Mode;
+  thinkingLevel?: SessionThinkingLevel;
   providerId?: string;
   modelId?: string;
   permissionMode?: PermissionMode;
+  /** Session `/fast` switch carried into the created session (ADR 0334). */
+  fastMode?: boolean;
 };
 
 
@@ -251,6 +256,7 @@ export type AppState = {
     modelId?: string;
     thinkingLevel: SessionThinkingLevel;
     permissionMode?: PermissionMode;
+    fastMode?: boolean;
   }) => Promise<void>;
   /** Returns true once accepted unless concurrent smart Stop restores it. */
   sendPrompt: (
@@ -448,6 +454,8 @@ export type AppState = {
     insertAfter: boolean,
   ) => void;
   closeWorkPanelTab: (tabId: string) => void;
+  closeOtherWorkPanelTabs: (tabId: string) => void;
+  closeAllWorkPanelTabs: () => void;
   collapseWorkPanel: () => void;
   /** Hide the visible panel while retaining its session-owned context. */
   resetWorkPanelContext: () => void;
