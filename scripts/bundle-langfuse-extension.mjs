@@ -12,8 +12,9 @@
  * The bundle has two parts: the plugin's own config bridge
  * (`src/config-bridge.js`), which is the entry the sidecar loads, and the
  * upstream `@langfuse/pi-observability-plugin` it delegates to, pulled in
- * through an alias to the pinned package. Upstream source is not modified —
- * the bridge only sets environment variables before importing it.
+ * through an alias to the pinned package. Part 2 is upstream's source plus the
+ * one documented patch in `langfuse-extension-patch.mjs` (ADR 0340), applied as
+ * an `onLoad` step; the bridge itself only sets environment variables.
  *
  * The upstream version is pinned in the root `package.json` devDependencies.
  * The build input is deliberately NOT installed into the product dependency
@@ -25,8 +26,12 @@
  *   node scripts/bundle-langfuse-extension.mjs --check    # fail when it drifts
  *   node scripts/bundle-langfuse-extension.mjs --from DIR # pre-installed input
  *
- * `DIR` must contain `node_modules/@langfuse/pi-observability-plugin`. Without
- * `--from`, the pinned package is installed into a temporary directory.
+ * `DIR` must contain `node_modules/@langfuse/pi-observability-plugin`, and must
+ * sit beside the repository as `langfuse-build`: esbuild writes every module
+ * path relative to the input, so another location cannot reproduce the
+ * artifact. Without `--from`, the pinned package is installed into a temporary
+ * directory, with dependency resolution pinned to
+ * `BUILD_INPUT_PUBLISHED_BEFORE` so a rebuild picks up the same versions.
  *
  * The kernel package stays external: the sidecar supplies it as a jiti virtual
  * module, so the extension shares the sidecar's kernel instance.
@@ -37,12 +42,21 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PATCH_SUMMARY, applyLangfuseSourcePatch } from "./langfuse-extension-patch.mjs";
 
 const PLUGIN_PACKAGE = "@langfuse/pi-observability-plugin";
 /** Supplied by the sidecar's virtual modules; bundling it would fork the kernel. */
 const VIRTUAL_KERNEL_MODULES = ["@earendil-works/pi-coding-agent"];
 /** esbuild is already a build dependency of the desktop app. */
 const ESBUILD_RANGE = "^0.25.12";
+/**
+ * Dependency resolution for the build input is pinned to the date the committed
+ * artifact was built. A plain `npm install` today resolves newer minors of the
+ * OpenTelemetry stack and rewrites thousands of unrelated lines, which nobody
+ * reviewing this plugin can audit. Raise this date together with the pin when
+ * upstream publishes an upgrade, and review the artifact diff it produces.
+ */
+const BUILD_INPUT_PUBLISHED_BEFORE = "2026-10-26T00:00:00Z";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const pluginDir = join(repoRoot, "examples", "plugins", "pi-langfuse");
@@ -92,10 +106,22 @@ function resolveBuildInput() {
     )}\n`,
   );
   // Lifecycle scripts are not needed to bundle TypeScript and must not run.
-  execFileSync("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund"], {
-    cwd: dir,
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  // `--before` keeps transitive resolution at the committed artifact's date, so
+  // a rebuild is reproducible instead of silently upgrading the stack.
+  execFileSync(
+    "npm",
+    [
+      "install",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      `--before=${BUILD_INPUT_PUBLISHED_BEFORE}`,
+    ],
+    {
+      cwd: dir,
+      stdio: ["ignore", "ignore", "inherit"],
+    },
+  );
   return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
@@ -123,11 +149,24 @@ try {
     "// Part 1: examples/plugins/pi-langfuse/src/config-bridge.js - the plugin's",
     "// own settings bridge, which installs the user's panel settings as",
     "// environment variables before importing part 2.",
-    `// Part 2: ${PLUGIN_PACKAGE}@${manifest.version}, built from the unmodified`,
-    "// published package; no local patch is applied to it.",
+    `// Part 2: ${PLUGIN_PACKAGE}@${manifest.version}, upstream's published source`,
+    `// plus one documented local patch - ${PATCH_SUMMARY}.`,
+    "// Patch: scripts/langfuse-extension-patch.mjs",
     `// Upstream: ${manifest.repository?.url ?? manifest.homepage ?? "https://github.com/langfuse/pi-observability-plugin"} (${manifest.license ?? "MIT"})`,
     "// Regenerate with: node scripts/bundle-langfuse-extension.mjs",
   ].join("\n");
+
+  // Part 2 is upstream's source plus that patch. Anchored, so a pinned-source
+  // change fails the build instead of shipping traces without the prompt.
+  const systemPromptPatch = {
+    name: "langfuse-system-prompt-patch",
+    setup(patchBuild) {
+      patchBuild.onLoad({ filter: /index\.ts$/ }, async (args) => {
+        if (resolve(args.path) !== upstreamEntry) return undefined;
+        return { contents: applyLangfuseSourcePatch(readFileSync(args.path, "utf8")), loader: "ts" };
+      });
+    },
+  };
 
   const result = await build({
     absWorkingDir: repoRoot,
@@ -139,6 +178,7 @@ try {
     target: "node22",
     external: VIRTUAL_KERNEL_MODULES,
     alias: { [PLUGIN_PACKAGE]: upstreamEntry },
+    plugins: [systemPromptPatch],
     // The OpenTelemetry stack is CommonJS, so the ESM bundle needs a real
     // `require`: esbuild's fallback throws "Dynamic require of X is not
     // supported". Same shim the sidecar's own bundle contract uses
@@ -164,7 +204,11 @@ try {
     }
     if (readFileSync(outfile, "utf8") !== bundle) {
       console.error(
-        `stale bundle: ${outfile}\nrun: node scripts/bundle-langfuse-extension.mjs`,
+        `stale bundle: ${outfile}\n` +
+          "run: node scripts/bundle-langfuse-extension.mjs --from ../langfuse-build\n" +
+          "note: every module path in the artifact is relative to the build input, so a " +
+          "byte-identical rebuild needs that input beside the repository and named " +
+          "langfuse-build",
       );
       process.exit(1);
     }

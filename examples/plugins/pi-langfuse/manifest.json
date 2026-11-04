@@ -8,12 +8,12 @@
     "en": {
       "name": "Langfuse Tracing",
       "description": "Opt-in tracing of agent turns, model calls, and tool runs to a Langfuse instance you configure. Ships no endpoint and no credentials; nothing is exported until you add your own keys.",
-      "safetyNotes": "Runs code inside the agent process and sends conversation content to the endpoint you configure. Prompts, replies, tool arguments and results, and images are exported. Read the plugin README before enabling."
+      "safetyNotes": "Runs code inside the agent process and sends conversation content to the endpoint you configure. The system prompt, your prompts, replies, tool arguments and results, and images are exported. Read the plugin README before enabling."
     },
     "zh-CN": {
       "name": "Langfuse 追踪",
       "description": "按需开启：把 agent 轮次、模型调用与工具执行上报到你自己配置的 Langfuse 实例。不内置任何地址与密钥，未填写自己的 key 之前不会上报任何数据。",
-      "safetyNotes": "在 agent 进程内运行代码，并把对话内容发往你配置的地址。提示词、回复、工具入参与结果、图片都会被导出。启用前请先阅读插件 README。"
+      "safetyNotes": "在 agent 进程内运行代码，并把对话内容发往你配置的地址。系统提示词、用户提示词、回复、工具入参与结果、图片都会被导出。启用前请先阅读插件 README。"
     }
   },
   "author": "PI-Desktop",

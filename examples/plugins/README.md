@@ -96,9 +96,13 @@ is not bundled into the app — an unconfigured install exports nothing.
 It is also the reference for a self-contained agent extension: the committed
 `agent/langfuse.mjs` is generated from a pinned upstream package by
 `scripts/bundle-langfuse-extension.mjs`, because a distributed plugin cannot
-carry a `node_modules` tree. Read its README before enabling — conversation
-content and images leave the machine, and redaction covers Langfuse keys only.
-Decision record: `docs/adr/0334-langfuse-ships-as-an-opt-in-example-plugin.md`.
+carry a `node_modules` tree. The artifact is upstream's source plus exactly one
+patch — each LLM Call input starts with the system prompt the request carried —
+applied from `scripts/langfuse-extension-patch.mjs`. Read its README before
+enabling: conversation content, the system prompt, and images leave the machine,
+and redaction covers Langfuse keys only. Decision records:
+`docs/adr/0334-langfuse-ships-as-an-opt-in-example-plugin.md` (opt-in shape) and
+`docs/adr/0340-langfuse-captures-the-system-prompt.md` (the patch).
 
 Its nine configuration rows are declared in the manifest, so PI-Desktop renders
 them on the plugin's own Settings sheet and stores them in the plugin's data
