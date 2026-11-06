@@ -256,6 +256,12 @@ export type ModelBinding = {
    * knowledge of the endpoint is the only source.
    */
   nativeWebSearch?: boolean;
+  /**
+   * Opt-in that lets the session `/fast` switch ask OpenAI for the priority
+   * service tier on this model (ADR 0334). Absent/false keeps the default
+   * tier; only Responses wires carry it (`fastModeSupportedOn`).
+   */
+  fastModeAllowed?: boolean;
 };
 
 export const MODEL_MODALITIES = ["text", "image", "audio", "video", "pdf"] as const;
@@ -329,6 +335,8 @@ export type ModelInfo = {
   cost?: ModelCost;
   interleaved?: ModelInterleaved;
   status?: string;
+  /** Last endpoint-list membership; absence is unknown, not an inference failure. */
+  discoveryState?: "published" | "unlisted";
   /** Provider-local upstream metadata, including models.dev adapter details. */
   provider?: ModelProviderMetadata;
   /** Model metadata extension published by models.dev. */

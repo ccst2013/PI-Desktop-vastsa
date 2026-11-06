@@ -1,4 +1,3 @@
-import type { SubagentOutcome } from "../../../lib/subagent-topology";
 import { useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { AgentActivity } from "@pi-desktop/shared";
@@ -58,7 +57,6 @@ export function TurnProcess({
   processParts,
   turnParts,
   visibleSteps,
-  delegationStatuses,
   isActive,
   failed,
   activity,
@@ -74,7 +72,6 @@ export function TurnProcess({
   failed: boolean;
   /** Live runtime stage, when the runtime reports one. */
   activity?: AgentActivity;
-  delegationStatuses?: ReadonlyMap<string, SubagentOutcome>;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -82,8 +79,8 @@ export function TurnProcess({
   const revealRequest = useMemo(() => search && processContainsMessage(processParts, search.messageId)
     ? search.requestId : undefined, [processParts, search]);
   const summary = useMemo(() => cachedActivitySummary(
-    processParts.flatMap((part) => part.kind === "activity" ? part.items : []), delegationStatuses,
-  ), [processParts, delegationStatuses]);
+    processParts.flatMap((part) => part.kind === "activity" ? part.items : []),
+  ), [processParts]);
   const thinkingNow = useMemo(() => isTurnThinking(turnParts, isActive), [turnParts, isActive]);
   // Active processes start open and untouched completed ones close by default;
   // an explicit user choice stays authoritative. This does not depend on the
@@ -128,6 +125,7 @@ export function TurnProcess({
   const label = (() => {
     if (phase.kind === "failed") return t("chat.processFailed");
     if (phase.kind === "stopped") return t("chat.processStopped");
+    if (phase.kind === "unsettled") return t("chat.processUnsettled");
     if (phase.kind === "completed") return t("chat.processCompleted");
     // Live: only stages with their own settled wording get their own label. The
     // rest describe an instant at the start of a request, and naming them would

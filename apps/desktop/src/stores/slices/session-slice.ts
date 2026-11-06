@@ -622,10 +622,20 @@ export function createSessionSlice({
                 thinkingLevel: selected.thinkingLevel,
               });
             } else {
-              void api.configureSession(id, {
+              // The active-session branch reports a refused write through its
+              // flush; a background session must not drop the pin silently,
+              // because the row keeps the optimistic value while the host
+              // reverts to the previous model on the next launch.
+              const pinWrite = api.configureSession(id, {
                 mode: selected.mode,
                 providerId: pin.providerId,
                 modelId: pin.modelId,
+              });
+              void pinWrite.catch((error) => {
+                get().showToast(
+                  error instanceof Error ? error.message : String(error),
+                  { variant: "error" },
+                );
               });
             }
           }
@@ -677,12 +687,12 @@ export function createSessionSlice({
           const workspace = await get().activateProject(requestedProjectPath, {
             navigationIntent: intent,
           });
-          if (!runtime.navigationIntentIsCurrent(intent)) return;
+          if (!runtime.navigationIntentIsCurrent(intent)) return null;
           if (!workspace) throw new Error(i18n.t("errors.workspaceActivationFailed"));
         }
         if (requestedProjectPath === null && get().workspace) {
           await get().clearProject({ navigationIntent: intent });
-          if (!runtime.navigationIntentIsCurrent(intent)) return;
+          if (!runtime.navigationIntentIsCurrent(intent)) return null;
         }
 
         const latest = runtime.latestSessionInScope(
@@ -699,12 +709,12 @@ export function createSessionSlice({
             submitted: runtime.submittedComposerDrafts.has(latest.id),
           })
         ) {
-          if (get().activeSessionId === latest.id && get().page === "chat") return;
+          if (get().activeSessionId === latest.id && get().page === "chat") return latest.id;
           await get().selectSession(latest.id, { navigationIntent: intent });
-          return;
+          return runtime.navigationIntentIsCurrent(intent) ? latest.id : null;
         }
 
-        await persistSessionAndSelect({
+        return await persistSessionAndSelect({
           intent,
           projectPath: requestedProjectPath,
           draftConfiguration: null,
@@ -800,6 +810,7 @@ export function createSessionSlice({
             modelId: config.modelId ?? state.draftConfiguration?.modelId,
             permissionMode:
               config.permissionMode ?? state.draftConfiguration?.permissionMode,
+            fastMode: config.fastMode ?? state.draftConfiguration?.fastMode,
           },
         }));
         return;

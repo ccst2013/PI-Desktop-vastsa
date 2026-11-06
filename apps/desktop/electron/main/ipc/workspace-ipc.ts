@@ -1,3 +1,5 @@
+import { clipboard } from "electron";
+import { readComposerClipboardDirectories } from "../composer-clipboard-directories";
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
@@ -36,10 +38,13 @@ import {
   listDir,
   readOpenableFile,
   readOpenableImage,
+  readUserOpenableFile,
   resolveRealOpenablePath,
+  resolveUserOpenablePath,
 } from "@pi-desktop/host-runtime";
+import { openReviewedFile } from "../reviewed-file-open";
 import { openableMp4Path } from "../open-attachment-video";
-import { isChatRefOutsideRoots, resolveChatFileRef } from "../chat-ref-resolve";
+import { isChatRefOutsideRoots, resolveChatFileRef, resolveExternalChatRef } from "../chat-ref-resolve";
 import { rebaseWorktreeRef, type WorktreeRefContext } from "../worktree-ref";
 import { getWorkspaceFileIndex, searchWorkspaceFiles } from "../fs-index";
 import {
@@ -326,11 +331,10 @@ export function registerWorkspaceIpc({
             .map((path) => resolve(path)),
         ),
       ];
-      if (safeFolders.some((path) => !existsSync(path) || !statSync(path).isDirectory())) {
-        throw Object.assign(new Error("project group folders must be directories"), {
-          errorCode: ErrorCodes.INVALID_ARGUMENT,
-        });
-      }
+      // No blanket existence pre-check here: the host validates the submitted
+      // roots (folders new to the group must exist on disk) while roots the
+      // group already owns may have been renamed or unmounted externally and
+      // must stay editable so the group can be healed (#1869).
       // The promoted primary must be one of the folders this call keeps.
       const safePrimary = primary ? resolve(primary) : "";
       if (safePrimary && !safeFolders.includes(safePrimary)) {
@@ -633,7 +637,12 @@ export function registerWorkspaceIpc({
     },
   );
 
-  handleWithEvent(
+  handleWithEvent(IPC.invoke.composerReadClipboardDirectories, async (event) => {
+  assertMainWindowSender(event);
+  return readComposerClipboardDirectories(clipboard, paths => rememberComposerPickerSelection(paths, event.sender.id));
+});
+
+handleWithEvent(
     IPC.invoke.composerPasteFiles,
     async (event, input: { sessionId?: unknown; files?: unknown } = {}) => {
       assertMainWindowSender(event);
@@ -687,6 +696,16 @@ export function registerWorkspaceIpc({
     }
     return collectWorkspaceDiff(cwd);
   });
+  for (const [channel, method] of [
+    [IPC.invoke.workspaceReviewTurns, "review.turns"],
+    [IPC.invoke.workspaceReviewChanges, "review.changes"],
+    [IPC.invoke.workspaceReviewContext, "review.context"],
+  ] as const) {
+    handle(channel, async (input: unknown) => {
+      if (!host) throw new Error("host unavailable");
+      return host.call(method, input);
+    });
+  }
   handle(
     IPC.invoke.workspaceReviewRollback,
     async (input: { sessionId: string; snapshotId: string }) => {
@@ -694,6 +713,23 @@ export function registerWorkspaceIpc({
       return host.call("review.rollback", input);
     },
   );
+
+  handle(IPC.invoke.workspaceReviewRollbackFile, async (input: unknown) => {
+    if (!host) throw new Error("host unavailable");
+    return host.call("review.rollbackFile", input);
+  });
+  handleWithEvent(IPC.invoke.workspaceReviewOpenFile, async (event, input: unknown) => {
+    assertMainWindowSender(event);
+    const owner = getHost();
+    if (!owner) throw new Error("host unavailable");
+    return openReviewedFile(input, {
+      target: (sessionId, snapshotId) => owner.call<{ path: string }>("review.fileTarget", { sessionId, snapshotId }),
+      isCurrent: () => getHost() === owner,
+      stripPrefix: stripWinLongPrefix,
+      openPath: path => shell.openPath(path),
+      reveal: path => shell.showItemInFolder(path),
+    });
+  });
 
   handle(
     IPC.invoke.statsGetTokenUsageHistory,
@@ -933,7 +969,7 @@ export function registerWorkspaceIpc({
           throw error;
         }
       }
-      return readOpenableFile(
+      return readUserOpenableFile(
         requested,
         workspaceRoot,
         await fsExtraRoots(workspaceRoot),
@@ -962,8 +998,18 @@ export function registerWorkspaceIpc({
     },
   );
 
-  handle(IPC.invoke.fsReveal, async (input: { path?: string; sessionId?: string } = {}) => {
+  handleWithEvent(IPC.invoke.fsReveal, async (event, input: { path?: string; sessionId?: string; directory?: boolean } = {}) => {
+    if (input.directory === true) assertMainWindowSender(event);
     const remote = await remoteFileWorkspace(input.sessionId);
+    if (input.directory === true) {
+      if (remote || !input.sessionId || typeof input.path !== "string" || !isAbsolute(input.path)) {
+        throw new Error("A local session and an absolute directory path are required");
+      }
+      const directory = await realpath(input.path);
+      if (!(await stat(directory)).isDirectory()) throw new Error("Path is not a directory");
+      shell.showItemInFolder(stripWinLongPrefix(directory));
+      return { ok: true };
+    }
     if (remote && !(await isLocalStoredFile(String(input.path ?? "")))) throw Object.assign(new Error("remote paths cannot be revealed on this computer"), { errorCode: ErrorCodes.INVALID_ARGUMENT });
     const requested = String(input.path ?? "").trim();
     let workspaceRoot: string | null = null;
@@ -974,7 +1020,7 @@ export function registerWorkspaceIpc({
         throw error;
       }
     }
-    const target = await resolveRealOpenablePath(
+    const target = await resolveUserOpenablePath(
       requested,
       workspaceRoot,
       await fsExtraRoots(workspaceRoot),
@@ -993,7 +1039,7 @@ export function registerWorkspaceIpc({
     if (remote && !(await isLocalStoredFile(String(input.path ?? "")))) throw Object.assign(new Error("remote paths cannot be opened on this computer"), { errorCode: ErrorCodes.INVALID_ARGUMENT });
     const workspaceRoot = await optionalWorkspaceRoot(input.sessionId);
     const requested = String(input.path ?? "").trim();
-    const target = await resolveRealOpenablePath(
+    const target = await resolveUserOpenablePath(
       requested,
       workspaceRoot,
       await fsExtraRoots(workspaceRoot),
@@ -1042,7 +1088,7 @@ export function registerWorkspaceIpc({
   handle(
     IPC.invoke.fsResolveRef,
     async (
-      input: { ref?: string; sessionId?: string } = {},
+      input: { ref?: string; sessionId?: string; allowDirectory?: boolean } = {},
     ): Promise<FsChatRefResolveResult> => {
       const rawRef = String(input.ref ?? "").trim();
       if (!rawRef) return { match: null };
@@ -1077,9 +1123,17 @@ export function registerWorkspaceIpc({
         attachments: join(dataDir, "attachments"),
       };
       if (await isChatRefOutsideRoots(ref, roots)) {
-        return { match: null, reason: "outside-allowed-roots" };
+        // An exact absolute path outside the managed roots opens when it names
+        // an existing regular file (ADR 0339). Directories outside the roots
+        // stay unreachable: the remote transport has no allowDirectory flag
+        // either, so local and remote keep the same file-only contract there.
+        return resolveExternalChatRef(ref);
       }
-      return { match: await resolveChatFileRef(ref, roots) };
+      return {
+        match: await resolveChatFileRef(ref, roots, {
+          allowDirectory: input.allowDirectory === true,
+        }),
+      };
     },
   );
 
