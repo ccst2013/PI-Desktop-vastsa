@@ -309,3 +309,46 @@ test("package-relative theme assets stay canonicalized inside their plugin", asy
     await rm(parent, { recursive: true, force: true });
   }
 });
+
+test("the pi-themes Glass family registers all twelve design palettes", () => {
+  const pluginRoot = join(repoRoot, "examples/plugins/pi-themes");
+  const manifest = JSON.parse(readFileSync(join(pluginRoot, "manifest.json"), "utf8"));
+  const expected = [
+    ["glass", "Aurora · 淡光", "light"],
+    ["glass-ember", "Ember · 浅杏", "light"],
+    ["glass-abyss", "Abyss · 浅海", "light"],
+    ["glass-graphite", "Graphite · 晨雾", "light"],
+    ["glass-peach", "Peach · 蜜桃", "light"],
+    ["glass-lemon", "Lemon · 浅柠", "light"],
+    ["glass-matcha", "Matcha · 抹茶", "light"],
+    ["glass-mint", "Mint · 薄荷", "light"],
+    ["glass-iris", "Iris · 鸢尾", "light"],
+    ["glass-ocean", "Ocean · 暮海", "dark"],
+    ["glass-plum", "Plum · 夜梅", "dark"],
+    ["glass-obsidian", "Obsidian · 曜岩", "dark"],
+  ];
+  const contributed = manifest.contributes.themes.filter(
+    (theme) => theme.id === "glass" || theme.id.startsWith("glass-"),
+  );
+  assert.deepEqual(
+    contributed.map((theme) => [theme.id, theme.label, theme.base]),
+    expected,
+  );
+  // One shared sheet: twelve entries must never fork the component rules.
+  assert.deepEqual([...new Set(contributed.map((theme) => theme.path))], ["themes/glass.css"]);
+  // Midnight stays a separate dark sheet.
+  const midnight = manifest.contributes.themes.find((theme) => theme.id === "midnight");
+  assert.equal(midnight.path, "themes/midnight.css");
+  assert.equal(midnight.base, "dark");
+
+  const css = readFileSync(join(pluginRoot, "themes/glass.css"), "utf8");
+  assert.equal(sanitizeThemeCss(css).ok, true);
+  // The base block covers `glass`; every other id owns an exact palette scope.
+  for (const [id] of expected.slice(1)) {
+    assert.ok(
+      css.includes(`[data-plugin-theme="plugin:ccst.pi-themes:${id}"]`),
+      `${id} needs its own palette scope`,
+    );
+  }
+  assert.match(css, /\[data-plugin-theme\|="plugin:ccst\.pi-themes:glass"\]/);
+});

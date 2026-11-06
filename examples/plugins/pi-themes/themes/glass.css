@@ -1,25 +1,26 @@
 /*
- * Glass — 日光 / 熔霞 / 晴海 / 晨雾 (shared material sheet)
- * Palette/materials sampled from Glass OS · 系统设置 (2026-09-24):
- * https://done.cdn.alibabadesign.com/2026/09/24/0a7c41d6d5dba09a/project_444ab7c5-452f-49a4-b780-2a7f68f01570/chat_6d962860-eb4e-4a47-8de4-234f6ab76de3/file-index.html#/
+ * Glass — 12 光场主题 (shared material sheet)
+ * Palettes mirrored from the Glass OS design bundle (/Users/alsc/Downloads/15,
+ * components/AppContext.jsx → GLASS_THEMES / INK_LIGHT / INK_DARK and the
+ * [data-ink="dark"] glass rules in index.previous.html).
  *
  * New components inherit the --ds-* contract; use the shared field, panel,
  * segment and menu classes below rather than introducing another palette.
  * The opaque page token is deliberate: it is also used as inverse button ink
  * and as the transcript occlusion mask. Only scenic shell surfaces go clear.
- * All four manifest entries load this file; the reserved glass / glass-* family
+ * Every manifest entry loads this file; the reserved glass / glass-* family
  * shares material rules. Exact theme selectors below set only reference colors.
  */
 :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] {
   color-scheme: light;
-  --glass-aurora-base: #8f66c9;
-  --glass-aurora-1: #ee5a86;
-  --glass-aurora-2: #a05cc4;
-  --glass-aurora-3: #4a6ce2;
-  --glass-aurora-blob: rgba(255, 255, 255, 0.5);
-  --glass-aurora-blob-alpha: 0.5;
+  --glass-aurora-base: #d3c3dd;
+  --glass-aurora-1: #e8b8c8;
+  --glass-aurora-2: #c6b2de;
+  --glass-aurora-3: #aabce4;
+  --glass-aurora-blob-rgb: 255, 255, 255;
+  --glass-aurora-blob-alpha: 0.62;
   --glass-blur: 26px;
-  --glass-sat: 170%;
+  --glass-sat: 132%;
   --glass-tint: 0.30;
   --glass-edge: 0.45;
   --glass-surface: rgba(255, 255, 255, var(--glass-tint));
@@ -41,16 +42,18 @@
     rgba(255, 255, 255, calc(0.06 / (1 - var(--glass-tint)))) 55%,
     rgba(255, 255, 255, calc(0.12 / (1 - var(--glass-tint)))));
   --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.9)),
-    0 24px 70px -34px rgba(59, 17, 110, 0.45);
+    0 24px 70px -34px rgba(96, 84, 130, 0.30);
   --glass-shadow-deep: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.8)),
-    0 30px 90px -40px rgba(59, 17, 110, 0.5);
+    0 30px 90px -40px rgba(96, 84, 130, 0.34);
   --glass-shadow-pill: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.85)),
-    0 8px 24px -14px rgba(59, 17, 110, 0.35);
+    0 8px 24px -14px rgba(96, 84, 130, 0.26);
   --glass-shadow-selected: inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 0 0 1px rgba(255, 255, 255, 0.45),
-    0 10px 30px -16px rgba(59, 17, 110, 0.4);
-  --ink-deep: #2b1244;
-  --ink-muted: #4a3366;
+    0 10px 30px -16px rgba(96, 84, 130, 0.30);
+  --glass-control-border: var(--glass-border);
+  --glass-secondary-hover: rgba(255, 255, 255, 0.78);
+  --ink-deep: #463f5c;
+  --ink-muted: #5b5273;
   --ink-faint: #6b5a86;
 
   /* Complete semantic paint ramp, including newer dock/agent/plugin surfaces. */
@@ -89,32 +92,32 @@
   --ds-text-primary: var(--ink-deep);
   --ds-text-secondary: var(--ink-muted);
   --ds-text-muted: var(--ink-faint);
-  --ds-text-faint: rgba(43, 18, 68, 0.55);
-  --ds-placeholder-ink: rgba(43, 18, 68, 0.55);
-  --ds-accent: #6d3fd4;
-  --ds-accent-hover: #5930b5;
-  --ds-accent-soft: #c2255c;
+  --ds-text-faint: rgba(70, 63, 92, 0.55);
+  --ds-placeholder-ink: rgba(70, 63, 92, 0.55);
+  --ds-accent: #6f5fc0;
+  --ds-accent-hover: #8272cf;
+  --ds-accent-soft: #a85c86;
   --ds-focus: var(--ds-accent);
-  --ds-purple: #a05cc4;
-  --ds-success: #187343;
-  --ds-warning: #914b12;
-  --ds-error: #e03131;
+  --ds-purple: #b4a0dc;
+  --ds-success: #3f7f5f;
+  --ds-warning: #a85c86;
+  --ds-error: #c26565;
   --ds-info: var(--ds-accent);
-  --ds-switch-track-off: rgba(43, 18, 68, 0.22);
-  --ds-switch-track-off-hover: rgba(43, 18, 68, 0.30);
-  --ds-switch-ring-off: rgba(43, 18, 68, 0.18);
+  --ds-switch-track-off: rgba(70, 63, 92, 0.22);
+  --ds-switch-track-off-hover: rgba(70, 63, 92, 0.30);
+  --ds-switch-ring-off: rgba(70, 63, 92, 0.18);
   --ds-switch-knob-off: #ffffff;
   --ds-switch-knob-on: #ffffff;
   --ds-prose-kbd-fg: var(--ink-muted);
   --ds-thinking-code-bg: #e4d9f2;
   --ds-mermaid-canvas: #f6f1fb;
-  --ds-code-head-bg: rgba(43, 18, 68, 0.06);
-  --ds-code-hover-bg: rgba(43, 18, 68, 0.10);
+  --ds-code-head-bg: rgba(70, 63, 92, 0.06);
+  --ds-code-hover-bg: rgba(70, 63, 92, 0.10);
   --ds-tool-row-bg: var(--glass-deep);
   --ds-send-disabled-bg: #e4d9f2;
   --ds-send-disabled-fg: var(--ink-faint);
-  --ds-scrim: rgba(43, 18, 68, 0.28);
-  --ds-modal-veil: rgba(43, 18, 68, 0.32);
+  --ds-scrim: rgba(70, 63, 92, 0.28);
+  --ds-modal-veil: rgba(70, 63, 92, 0.32);
   --ds-shadow-composer: var(--glass-shadow);
   --ds-shadow-dialog: var(--glass-shadow-deep);
   --ds-elevation-stroke: 0 0 0 1px var(--glass-border);
@@ -125,27 +128,158 @@
   --radius-2xl: 28px;
 }
 
-/* Reference variants change the light field, not the purple ink or controls.
- * Keep `glass` as the original 日光 id so existing preferences remain valid. */
+/* Light light-fields: only the aurora stops and bloom tint change; ink,
+ * accents and the white glass ramp are shared. `glass` is the base block. */
 :root[data-plugin-theme="plugin:ccst.pi-themes:glass-ember"] {
-  --glass-aurora-base: #d4699b;
-  --glass-aurora-1: #ff8a5c;
-  --glass-aurora-2: #f0508c;
-  --glass-aurora-3: #a44ad4;
+  --glass-aurora-base: #dbbcbf;
+  --glass-aurora-1: #eec6ac;
+  --glass-aurora-2: #e0b4be;
+  --glass-aurora-3: #cbb2dc;
+  --glass-aurora-blob-rgb: 255, 252, 246;
+  --glass-aurora-blob-alpha: 0.62;
 }
 :root[data-plugin-theme="plugin:ccst.pi-themes:glass-abyss"] {
-  --glass-aurora-base: #3f9bd8;
-  --glass-aurora-1: #22d3c5;
-  --glass-aurora-2: #38a8e8;
-  --glass-aurora-3: #5b6cf0;
+  --glass-aurora-base: #adc7e0;
+  --glass-aurora-1: #aedcd6;
+  --glass-aurora-2: #adcbe6;
+  --glass-aurora-3: #b2bce4;
+  --glass-aurora-blob-rgb: 246, 255, 253;
+  --glass-aurora-blob-alpha: 0.62;
 }
 :root[data-plugin-theme="plugin:ccst.pi-themes:glass-graphite"] {
-  --glass-aurora-base: #b6bfd4;
-  --glass-aurora-1: #cfd6e4;
-  --glass-aurora-2: #aab4cc;
-  --glass-aurora-3: #8892b0;
-  --glass-aurora-blob: rgba(255, 255, 255, 0.6);
-  --glass-aurora-blob-alpha: 0.6;
+  --glass-aurora-base: #ccd3de;
+  --glass-aurora-1: #e0e5ed;
+  --glass-aurora-2: #c8d0dc;
+  --glass-aurora-3: #b0bacb;
+  --glass-aurora-blob-rgb: 255, 255, 255;
+  --glass-aurora-blob-alpha: 0.66;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-peach"] {
+  --glass-aurora-base: #e8c4c6;
+  --glass-aurora-1: #f2d0b8;
+  --glass-aurora-2: #eec0cd;
+  --glass-aurora-3: #dec2dc;
+  --glass-aurora-blob-rgb: 255, 250, 244;
+  --glass-aurora-blob-alpha: 0.64;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-lemon"] {
+  --glass-aurora-base: #e8ddb4;
+  --glass-aurora-1: #f0e2b0;
+  --glass-aurora-2: #ecd6ac;
+  --glass-aurora-3: #d2dcb2;
+  --glass-aurora-blob-rgb: 255, 254, 240;
+  --glass-aurora-blob-alpha: 0.66;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-matcha"] {
+  --glass-aurora-base: #bccfb8;
+  --glass-aurora-1: #c8dcb4;
+  --glass-aurora-2: #b2d4c2;
+  --glass-aurora-3: #aaccc6;
+  --glass-aurora-blob-rgb: 248, 255, 246;
+  --glass-aurora-blob-alpha: 0.64;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-mint"] {
+  --glass-aurora-base: #b2dad6;
+  --glass-aurora-1: #bce6da;
+  --glass-aurora-2: #a8d8d0;
+  --glass-aurora-3: #b0d2e2;
+  --glass-aurora-blob-rgb: 244, 255, 252;
+  --glass-aurora-blob-alpha: 0.66;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-iris"] {
+  --glass-aurora-base: #b8bce6;
+  --glass-aurora-1: #c4bce8;
+  --glass-aurora-2: #b4b0e4;
+  --glass-aurora-3: #aec6e6;
+  --glass-aurora-blob-rgb: 248, 246, 255;
+  --glass-aurora-blob-alpha: 0.64;
+}
+
+/* Dark light-fields: 暮海 / 夜梅 / 曜岩. The design flips the ink to soft
+ * white and pours slate-purple glass instead of white tints; these values are
+ * the bundle's [data-ink="dark"] rules evaluated at tint 0.30 / edge 0.45. */
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-ocean"] {
+  --glass-aurora-base: #4e668a;
+  --glass-aurora-1: #5f7da6;
+  --glass-aurora-2: #52688f;
+  --glass-aurora-3: #43527a;
+  --glass-aurora-blob-rgb: 200, 220, 245;
+  --glass-aurora-blob-alpha: 0.36;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-plum"] {
+  --glass-aurora-base: #5d5179;
+  --glass-aurora-1: #7c6698;
+  --glass-aurora-2: #665683;
+  --glass-aurora-3: #4e4568;
+  --glass-aurora-blob-rgb: 210, 200, 235;
+  --glass-aurora-blob-alpha: 0.34;
+}
+:root[data-plugin-theme="plugin:ccst.pi-themes:glass-obsidian"] {
+  --glass-aurora-base: #484e5c;
+  --glass-aurora-1: #565c6c;
+  --glass-aurora-2: #474c5a;
+  --glass-aurora-3: #3a3e4a;
+  --glass-aurora-blob-rgb: 200, 210, 230;
+  --glass-aurora-blob-alpha: 0.30;
+}
+:root:is([data-plugin-theme="plugin:ccst.pi-themes:glass-ocean"],
+  [data-plugin-theme="plugin:ccst.pi-themes:glass-plum"],
+  [data-plugin-theme="plugin:ccst.pi-themes:glass-obsidian"]) {
+  color-scheme: dark;
+  --glass-surface: rgba(58, 54, 80, calc(0.30 + var(--glass-tint) * 0.45));
+  --glass-deep: rgba(48, 44, 68, calc(0.36 + var(--glass-tint) * 0.55));
+  --glass-pill: rgba(74, 68, 104, calc(var(--glass-tint) * 1.7 + 0.30));
+  --glass-pill-hover: rgba(86, 79, 120, calc(var(--glass-tint) * 1.7 + 0.36));
+  --glass-selected: rgba(150, 140, 196, calc(var(--glass-tint) * 1.3 + 0.28));
+  --glass-border: rgba(255, 255, 255, calc(var(--glass-edge) * 0.8));
+  --glass-border-deep: rgba(255, 255, 255, calc(var(--glass-edge) * 0.7));
+  --glass-control-border: rgba(255, 255, 255, calc(var(--glass-edge) * 0.5));
+  --glass-side: linear-gradient(168deg,
+    rgba(66, 60, 92, calc(var(--glass-tint) * 1.5 + 0.30)),
+    rgba(54, 50, 76, calc(var(--glass-tint) * 1.5 + 0.24)) 55%,
+    rgba(62, 57, 88, calc(var(--glass-tint) * 1.5 + 0.28)));
+  --glass-side-over: var(--glass-side);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.5)),
+    0 24px 70px -34px rgba(30, 26, 44, 0.45);
+  --glass-shadow-deep: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.45)),
+    0 30px 90px -40px rgba(30, 26, 44, 0.50);
+  --glass-shadow-pill: inset 0 1px 0 rgba(255, 255, 255, calc(var(--glass-edge) * 0.35)),
+    0 8px 24px -14px rgba(30, 26, 44, 0.45);
+  --glass-shadow-selected: inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 10px 30px -16px rgba(30, 26, 44, 0.50);
+  --glass-secondary-hover: rgba(150, 140, 196, 0.55);
+  --ink-deep: #e6e2f2;
+  --ink-muted: rgba(230, 226, 242, 0.78);
+  --ink-faint: rgba(230, 226, 242, 0.58);
+  --ds-bg-primary: #322e46;
+  --ds-bg-tertiary: #3a3650;
+  --ds-bg-elevated-opaque: #3a3650;
+  --ds-bg-hover: rgba(255, 255, 255, 0.10);
+  --ds-border-subtle: rgba(255, 255, 255, 0.18);
+  --ds-border-strong: rgba(255, 255, 255, 0.50);
+  --ds-text-faint: rgba(230, 226, 242, 0.45);
+  --ds-placeholder-ink: rgba(230, 226, 242, 0.50);
+  --ds-accent: #a99ce0;
+  --ds-accent-hover: #bcb0ef;
+  --ds-accent-soft: #d99ab8;
+  --ds-purple: #b4a0dc;
+  --ds-success: #8fd6a8;
+  --ds-warning: #e8c07a;
+  --ds-error: #e59a9a;
+  --ds-switch-track-off: rgba(230, 226, 242, 0.20);
+  --ds-switch-track-off-hover: rgba(230, 226, 242, 0.28);
+  --ds-switch-ring-off: rgba(230, 226, 242, 0.24);
+  --ds-switch-knob-off: #e6e2f2;
+  --ds-switch-knob-on: #221b34;
+  --ds-thinking-code-bg: #423d5c;
+  --ds-mermaid-canvas: #3a3650;
+  --ds-code-head-bg: rgba(255, 255, 255, 0.08);
+  --ds-code-hover-bg: rgba(255, 255, 255, 0.12);
+  --ds-send-disabled-bg: #4a4464;
+  --ds-send-disabled-fg: rgba(230, 226, 242, 0.55);
+  --ds-scrim: rgba(20, 17, 30, 0.55);
+  --ds-modal-veil: rgba(20, 17, 30, 0.60);
 }
 
 /* Aurora field. Four light blooms, no external assets or background network.
@@ -171,8 +305,8 @@
 }
 :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::before {
   background-image:
-    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.55)), transparent 70%),
-    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.45)), transparent 70%);
+    radial-gradient(closest-side, rgba(var(--glass-aurora-blob-rgb), calc(var(--glass-aurora-blob-alpha) * 0.55)), transparent 70%),
+    radial-gradient(closest-side, rgba(var(--glass-aurora-blob-rgb), calc(var(--glass-aurora-blob-alpha) * 0.45)), transparent 70%);
   background-size: 62vw 62vw, 34vw 34vw;
   background-position:
     left calc(var(--glass-aurora-bleed) - 18vw) top calc(var(--glass-aurora-bleed) - 22vw),
@@ -181,8 +315,8 @@
 }
 :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"]::after {
   background-image:
-    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.35)), transparent 70%),
-    radial-gradient(closest-side, rgba(255, 255, 255, calc(var(--glass-aurora-blob-alpha) * 0.30)), transparent 70%);
+    radial-gradient(closest-side, rgba(var(--glass-aurora-blob-rgb), calc(var(--glass-aurora-blob-alpha) * 0.35)), transparent 70%),
+    radial-gradient(closest-side, rgba(var(--glass-aurora-blob-rgb), calc(var(--glass-aurora-blob-alpha) * 0.30)), transparent 70%);
   background-size: 52vw 52vw, 66vw 66vw;
   background-position:
     left calc(var(--glass-aurora-bleed) - 6vw) bottom calc(var(--glass-aurora-bleed) - 26vw),
@@ -305,8 +439,9 @@
   .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
   .plugins-search, .settings-segment) {
   --glass-field-shadow: var(--glass-shadow-pill);
-  --glass-field-border: var(--glass-border);
+  --glass-field-border: var(--glass-control-border);
   background: var(--glass-pill);
+  border: 1px solid var(--glass-control-border);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-sat));
@@ -328,7 +463,7 @@
   .settings-menu-select-trigger, .agent-capability-search-wrap, .model-default-search,
   .plugins-search):focus-within {
   background: var(--ds-field-inset-focus-bg);
-  border-color: var(--glass-border);
+  border-color: var(--glass-control-border);
   box-shadow: var(--glass-shadow-pill);
 }
 
@@ -364,7 +499,7 @@
   box-shadow: var(--glass-shadow-selected);
 }
 :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--glass-secondary-hover);
 }
 :root[data-plugin-theme|="plugin:ccst.pi-themes:glass"] :is(input[type="range"], input[type="checkbox"]) {
   accent-color: var(--ds-accent);
@@ -427,6 +562,19 @@
     --glass-side: linear-gradient(#f6f1fb, #e4d9f2);
     --glass-side-over: var(--glass-side);
     --glass-blur: 0px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root:is([data-plugin-theme="plugin:ccst.pi-themes:glass-ocean"],
+    [data-plugin-theme="plugin:ccst.pi-themes:glass-plum"],
+    [data-plugin-theme="plugin:ccst.pi-themes:glass-obsidian"]) {
+    --glass-surface: #3a3650;
+    --glass-deep: #302c44;
+    --glass-pill: #4a4464;
+    --glass-pill-hover: #544d70;
+    --glass-selected: #67607f;
+    --glass-side: linear-gradient(#423c5c, #36324c);
+    --glass-side-over: var(--glass-side);
   }
 }
 @media (max-width: 800px) {
