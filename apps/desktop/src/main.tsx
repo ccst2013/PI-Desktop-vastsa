@@ -71,6 +71,11 @@ const PluginLauncher = React.lazy(() =>
     default: module.PluginLauncher,
   })),
 );
+const ComputerCursor = React.lazy(() =>
+  import("./features/computer-use/ComputerCursor").then((module) => ({
+    default: module.ComputerCursor,
+  })),
+);
 const LiveVoiceWidget = React.lazy(() =>
   import("./features/voice/live/LiveVoiceWidget").then((module) => ({
     default: module.LiveVoiceWidget,
@@ -113,6 +118,10 @@ async function startRenderer(): Promise<void> {
           ) : rendererSurface === "live-voice-widget" ? (
             <ErrorBoundary>
               <LiveVoiceWidget />
+            </ErrorBoundary>
+          ) : rendererSurface === "computer-cursor" ? (
+            <ErrorBoundary>
+              <ComputerCursor />
             </ErrorBoundary>
           ) : (
             <App />

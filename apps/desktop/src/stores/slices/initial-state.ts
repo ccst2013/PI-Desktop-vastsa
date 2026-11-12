@@ -1,5 +1,6 @@
 import { loadRecentModels } from "../../lib/recent-models";
 import { SIGNED_OUT_ACCOUNT_STATE } from "@pi-desktop/shared";
+import { DEFAULT_SETTINGS_TAB } from "../../lib/settings-search";
 import type { AppState, AppStateData } from "../app-state";
 import { projectWorkspaceFromPath } from "../../lib/sidebar-preferences";
 import { loadSidebarPreferences } from "../../lib/sidebar-preferences";
@@ -87,7 +88,7 @@ export function createInitialState(): AppStateData {
     planCheckpoints: {},
     sessionTodos: {},
     page: "chat",
-    settingsTab: "general",
+    settingsTab: DEFAULT_SETTINGS_TAB,
     settingsAnchor: null,
     settingsTabNonce: 0,
     navStack: [{ page: "chat" }],

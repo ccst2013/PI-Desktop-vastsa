@@ -1,5 +1,18 @@
 # 01. IPC Protocol
 
+### composer/readClipboardDirectories
+
+An additive main-window-only Electron channel accepting no source paths. During
+an explicit native file paste, main captures at most 20 paths / 1 MiB of native
+metadata, resolves file/directory metadata and returns null if no directory is
+present. Otherwise it returns ordered items (`{kind: "directory", path, name}` or
+`{kind: "file", name}`) and an optional sender-bound one-shot token for regular
+files through `composer/importFiles`. MCP/plugin callers cannot invoke it.
+Directories remain prompt/draft metadata, never binary attachments, file previews
+or recursive snapshots. History retains their absolute paths without reading
+contents or granting access. Other clipboard text is never read by this channel.
+
+
 ## 1. Goal
 
 Define a stable contract between the renderer and main.
@@ -68,6 +81,7 @@ Examples:
 - `pi-desktop/session/getScratchPath`
 - `pi-desktop/session/openScratchPath`
 - `pi-desktop/session/collaboration`
+- `pi-desktop/session/usageCost`
 
 ## 3.1 Logical project groups
 
@@ -215,7 +229,9 @@ For a vision-capable model, images within the 10 MB per-image bound become
 transient pi-ai image blocks. Restored history also has a 30 MB aggregate raw
 image-byte budget: the sidecar considers persisted attachments newest-first and
 preserves every eligible image when the total fits. If the budget is exceeded,
-older images use the existing safe `@path` fallback. Unknown/custom models
+older images use the existing safe `@path` fallback. An image rejected for a
+longest edge above 8000 px does not consume that budget, so an older image
+that still fits stays inlined. Unknown/custom models
 without an explicit image override, non-vision models, oversized images, and
 unavailable refs also use the safe fallback. Main uses streamed hashing and file
 copying for oversized images. The durable user message stores `content` plus
@@ -270,6 +286,11 @@ The internal `agent.steeringContext` and `agent.steer` methods use only an
 existing runtime. They do not run launch configuration, `runtimeFor`, or
 `session.beginTurn`. Steering cannot change the active model, permission mode,
 workspace, or approved execution. Slash text is literal input on this channel.
+
+After accepted steering, status activity may be `waiting-tool-stop` while the
+current turn waits for a tool to settle. Local foreground shell and read calls
+receive cancellation; the activity does not assert that a process has exited.
+Remote or uncertain external operations retain their settlement fence.
 
 Accepted input is echoed as ordinary user message events with the current
 `turnId`, main-prepared attachment refs, and `UiMessage.steering: true`. This
@@ -977,6 +998,7 @@ type UiMessage = {
  sessionMessage?: SessionMessageOrigin;
  thinking?: string; // assistant reasoning, never folded into content
  usage?: MessageUsage; // provider-reported assistant usage
+ responseModelId?: string; // concrete served model when it differs from modelId
  responseDurationMs?: number; // elapsed assistant response duration for throughput
  providerWaitMs?: number; // request start to first model response event
  modelStreamDurationMs?: number; // streamed thinking and answer duration
@@ -1057,6 +1079,27 @@ window system menu does not open. Non-Windows hosts treat the method as a
 no-op. `responseDurationMs` and `responseOutputTokens` are optional transcript
   metadata persisted in message metadata, so protocol v11 and storage schema v16
 remain unchanged.
+
+`responseModelId` is the same kind of optional message metadata. Agent Runtime
+sets it from the provider-reported response model (Pi `responseModel`) only when
+that model differs from the requested `modelId` and is not a dated snapshot of
+it; the value is trimmed, bounded to 200 characters, and rejected when it holds
+control characters. The transcript model chip shows it and names the requested
+model in its label. `MessageUsage.costStatus` is `reported` when the provider
+returned the billed total (Pi `usage.cost.totalFromProvider`), `estimated` when
+the total comes from catalog rates, and `unknown` without a usable price; a
+rollup is `reported` only when every part is.
+
+`pi-desktop/session/usageCost({ sessionId }) -> SessionUsageCost` is a
+read-only rollup of every turn the session ever ran, served by Host
+`session.usageCost`. The renderer holds only a window of the transcript, so the
+session total is never summed from loaded messages. Each physical request in a
+turn ledger is counted once and grouped by its `providerId`; turns of every
+status count, because aborted and failed requests were still billed.
+`ProviderUsageCost.total` sums only priced requests, `reportedRequests` counts
+those the provider billed, and `unpricedRequests` counts requests without a
+usable price, including legacy token-only turns grouped without a
+`providerId`. Imported `native-pi:` sessions return an empty rollup.
 
 The Settings font picker (ADR 0083) reads installed system font families
 through one Electron-only allowlisted channel:
