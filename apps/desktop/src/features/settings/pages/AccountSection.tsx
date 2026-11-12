@@ -11,10 +11,10 @@
  */
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAppStore } from "../../stores/app-store";
-import { api } from "../../lib/api";
-import { Button } from "../../components/ui";
-import { SettingsCard, SettingsRow } from "./primitives";
+import { useAppStore } from "../../../stores/app-store.ts";
+import { api } from "../../../lib/api.ts";
+import { Button } from "../../../components/ui.tsx";
+import { SettingsCard, SettingsRow } from "../primitives.tsx";
 
 export function AccountSection() {
   const { t, i18n } = useTranslation();

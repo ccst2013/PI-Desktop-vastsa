@@ -17,6 +17,7 @@ import { RadialMenuSettings } from "../../../components/settings/RadialMenuSetti
 import { StartupAnimationRows } from "../../../components/settings/StartupAnimationRows";
 import { ThemeRow } from "../../../components/settings/ThemeRow";
 import { SettingsCard, SettingsRow } from "../primitives";
+import { AccountSection } from "./AccountSection";
 
 export function AppearanceSettings({
   settings,
@@ -30,6 +31,7 @@ export function AppearanceSettings({
   const { t } = useTranslation();
   return (
     <div className="settings-stack">
+      <AccountSection />
       <SettingsCard title={t("settings.interface")}>
         <ThemeRow settings={settings} saveSettings={saveSettings} />
         <LanguageRow settings={settings} saveSettings={saveSettings} />

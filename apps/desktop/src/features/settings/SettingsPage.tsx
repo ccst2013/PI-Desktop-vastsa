@@ -38,7 +38,6 @@ import {
 import { Badge, Button, cx } from "../../components/ui";
 import { ModelConfigPage } from "../../components/settings/ModelConfigPage";
 import { KeyboardShortcutsSection } from "../../components/settings/KeyboardShortcutsSection";
-import { AccountSection } from "./AccountSection";
 import { ProjectsPage } from "../../pages/ProjectsPage";
 import { AgentSkillsPage } from "../../components/settings/AgentSkillsPage";
 import { AgentMcpPage } from "../../components/settings/AgentMcpPage";
