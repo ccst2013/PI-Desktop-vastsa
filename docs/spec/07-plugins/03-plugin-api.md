@@ -409,15 +409,21 @@ This read-only metadata needs no permission and is also available through the
 panel bridge channel `projects.list`. It never creates, opens, switches, or
 grants access to a project. Filesystem and session permissions are unchanged.
 
-`workspace.get` answers with the primary root — `path` and its leaf `name`,
-both unchanged — plus, when that folder belongs to a project group (ADR 0249),
-`projectId` and `roots`: every registered folder of the group in its own order,
-primary first, each `{ path, name, primary }` (ADR 0263). `workspace:changed`
-carries the same object, and main answers both from the host-owned group
-records, so the event and the pull cannot disagree. A host that cannot resolve
-the group omits `projectId` and `roots` — the same `{ path, name }` a plugin
-already handles — and reading this metadata needs no new permission and adds no
-SDK method.
+`workspace.get` uses the same trusted tool-session project as workspace-rooted
+filesystem calls (ADR 0266). A background session therefore receives its own
+`path`, `name`, `projectId`, group `roots`, and remote metadata even when another
+project is visible or no project is selected. Tool arguments do not select a
+workspace or impersonate a session. Panel calls and untracked sessions retain
+the visible-workspace fallback; `workspace:changed` continues to describe that
+visible workspace, so a background tool's pull can intentionally differ from
+the foreground event.
+
+Group metadata is resolved from the host-owned group snapshot for the selected
+path. An older metadata provider that answers for a different path is discarded
+in favor of the session's `{ path, name }`, without copying another group's
+roots or remote identity. The existing return shape, SDK method, permissions,
+and storage schema do not change. Absolute `openDefault`, `openInBrowser`, and
+`reveal` requests use the same invoking project's registered roots.
 
 `fs.readPreview` classifies one existing readable file for in-app display. It
 uses the same `fs.read` checks as `fs.readText`, rejects directories, and
@@ -1005,10 +1011,22 @@ invocation. The broker injects `pluginId`, source `sessionId`, source `turnId`,
 and an invocation identity; plugin arguments cannot supply or override those
 values. A user-facing plugin panel may use `cancel` with its own plugin
 identity, but cannot use that path to send or spawn work. The host enforces
-the source permission ceiling, Agent-mode target, inbox and worker limits,
-idempotency, and bounded autonomous hops. A requested completion callback is
-a host-owned `completion` message linked to the source delivery and is created
-at most once after the actual target turn settles.
+the source permission ceiling, Agent-mode target, inbox bound, idempotency, and
+bounded autonomous hops, and refuses a worker that tries to create a further
+worker. How many workers run at once is the calling plugin's own policy: the
+host records creator provenance and does not impose a fixed concurrency ceiling.
+A requested completion callback is a host-owned `completion` message linked to
+the source delivery and is created at most once after the actual target turn
+settles, including a delivery fenced as `interrupted` by an application restart.
+A completion receipt is promoted in the target session's turn queue, so a busy
+target runs it at the next turn boundary ahead of input the user queued earlier
+(ADR 0265); it is never injected into another session's running turn. Its content
+is a readable report — a `Sub-session report` line, then `Session:`, `Status:`,
+`Delivery:`, a `Report:` section with the worker's final text, and `Error:` when
+the run failed — not an encoded envelope. A `send` may ask for the same treatment
+with `delivery: "immediate"`; the default `queue` appends behind whatever the
+target already queued.
+
 The callback is session data, not a new user authorization, and completion
 messages do not trigger another callback.
 
@@ -1288,6 +1306,14 @@ The reviewed catalog includes `session/open(sessionId)` for a plugin UI to
 open an existing durable session. Plugin-originated `session/create` and
 `agent/prompt` calls refresh session state without changing the active
 renderer session; `session/open` is explicit navigation.
+
+The catalog also includes the read `agent/pendingInteractive({ sessionId })`
+(`sessionId` is required), which returns `{ asks, permissions }`: the session's
+pending ask-tool and tool permission requests, the same payload the renderer
+reads to rebuild its cards. A plugin uses it to discover the `requestId` that
+the dangerous `agent/askTool/resolve` and `tool/resolvePermission` operations
+need. Like every shared catalog operation, it is also reachable through the
+local MCP control plane.
 
 This is the first-party plugin gateway to the reviewed operation catalog shared
 with the opt-in local MCP control plane (ADR 0203 / D370). The two catalogs
