@@ -42,7 +42,9 @@ export function createImageGenerationTool(options: {
     if (!binding)
       return failure(
         "IMAGE_NOT_CONFIGURED",
-        "Configure an image generation model in Settings > Models > Image generation model before generating images. Do not substitute another model.",
+        // MCP image tools stay separate: they are discovered and called as
+        // ordinary MCP tools and never back this built-in tool (#2563).
+        "Configure an image generation model in Settings > Models > Image generation model before generating images. Do not substitute another model. MCP image tools are separate tools and cannot back this one.",
       );
     const { provider } = await host.call<{ provider?: ProviderPublic }>("providers.get", {
       id: binding.providerId,
@@ -99,6 +101,7 @@ export function createImageGenerationTool(options: {
     signal.throwIfAborted();
     const { session } = await host.call<{ session?: { projectPath?: string } }>("session.get", {
       id: sessionId,
+      messageLimit: 1,
     });
     if (!session) return failure("SESSION_NOT_FOUND", "The image session no longer exists.");
     const operations: ImageOperationMetadata[] = [];

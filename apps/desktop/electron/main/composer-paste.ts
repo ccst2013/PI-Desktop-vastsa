@@ -87,7 +87,7 @@ function fileNameOf(name: unknown, mimeType: string, index: number): string {
   return extname(candidate) ? candidate : `${candidate}${extension}`;
 }
 
-function mimeTypeForPath(path: string): string {
+export function mimeTypeForPath(path: string): string {
   return MIME_BY_EXTENSION[extname(path).toLowerCase()] ?? "application/octet-stream";
 }
 
@@ -159,6 +159,29 @@ export async function saveComposerPasteFiles(
       };
     }),
   );
+}
+
+/**
+ * Decide, in order, which native disk files can be copied as image
+ * attachments within the same per-file and batch bounds that
+ * importComposerFiles enforces. Files that do not fit are left for the
+ * caller's metadata-only reference flow instead of failing the whole paste.
+ */
+export function selectImportableComposerImages(
+  files: ReadonlyArray<{ path: string; size: number }>,
+): boolean[] {
+  let count = 0;
+  let totalBytes = 0;
+  return files.map(({ path, size }) => {
+    const name = basename(path);
+    if (!isImageFile(name, mimeTypeForPath(path))) return false;
+    if (count >= MAX_FILES || size > MAX_FILE_BYTES || totalBytes + size > MAX_TOTAL_BYTES) {
+      return false;
+    }
+    count += 1;
+    totalBytes += size;
+    return true;
+  });
 }
 
 /**

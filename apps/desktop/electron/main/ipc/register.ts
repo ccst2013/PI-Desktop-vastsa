@@ -25,6 +25,7 @@ import { registerComputerIpc } from "./computer-ipc";
 import { registerJevIpc } from "./jev-ipc";
 import { registerModesIpc } from "./modes-ipc";
 import type { ModeServices } from "../runtime/mode-services";
+import { enabledModeSkills } from "../runtime/mode-skills";
 import { registerProviderIpc } from "./provider-ipc";
 import { registerScheduledIpc } from "./scheduled-ipc";
 import { registerSessionIpc } from "./session-ipc";
@@ -320,6 +321,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
   });
   registerSettingsIpc({
     registrar,
+    sendToRenderer,
     getHost,
     getSidecar,
     dataDir,
@@ -358,7 +360,14 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     onProviderInvalidated: (providerId) => liveCallService?.invalidateProvider(providerId),
   });
   registerJevIpc({ registrar, logger });
-  registerModesIpc({ registrar, catalog: dependencies.modeServices.catalog, runs: dependencies.modeServices.runs });
+  registerModesIpc({
+    registrar,
+    catalog: dependencies.modeServices.catalog,
+    runs: dependencies.modeServices.runs,
+    // Opening a mode's `skills/` folder is the only path this feature hands to
+    // the OS, and the path is the one the catalog derived for that mode id.
+    openPath: (path) => shell.openPath(stripWinLongPrefix(path)),
+  });
   registerComputerIpc({ registrar, getHost, publishGrant: publishComputerGrant });
   registerWorktreeIpc({
     registrar,
@@ -377,6 +386,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     optionalWorkspaceRoot,
     activeUserSkills,
     disabledBuiltinSkills: runtimeDisabledBuiltinSkills,
+    modeSkills: (mode) => enabledModeSkills(dependencies.modeServices.catalog, mode).catch(() => []),
     pluginActiveInProject,
     loadComposerTemplatesCached,
   });
@@ -464,6 +474,8 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     activeTurns,
     completionNoticeTurns,
     recordTurnStart,
+    observePersistedUserMessage: dependencies.observePersistedUserMessage,
+    scheduledRunsBySession,
     isTurnDispatchable,
     activeTurnUsages,
     approvedExecutionIdsBySession,
@@ -511,6 +523,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
 
 
   registerSkillsIpc({
+    modeCatalog: dependencies.modeServices.catalog,
     registrar,
     getHost,
     searchSkillMarket,
